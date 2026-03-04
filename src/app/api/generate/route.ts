@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { generateColoringPage, getSvgFallback } from '@/lib/ai/generateColoringPage';
+import { generateColoringPage } from '@/lib/ai/generateColoringPage';
 import { buildPromptFromSlots, buildCustomPrompt } from '@/lib/ai/promptBuilder';
 import { checkPromptSafety } from '@/lib/ai/safetyFilter';
 import { processImageForColoring, createThumbnail, fetchImage } from '@/lib/image/processImage';
@@ -92,21 +92,7 @@ export async function POST(request: NextRequest) {
       // Generate coloring page image
       const result = await generateColoringPage(prompt);
 
-      // If it's a Pollinations URL, return it for client-side loading
-      // The frontend will load the image directly and fall back to SVG if it fails
-      if (result.isPollinationsUrl) {
-        const svgFallbackUrl = getSvgFallback(prompt);
-
-        return NextResponse.json({
-          imageUrl: result.imageUrl,
-          svgFallbackUrl,
-          isPollinationsUrl: true,
-          prompt,
-          remaining: rateLimit.remaining,
-        });
-      }
-
-      // Check if it's a data URL (SVG) or external URL
+      // Check if it's a data URL (SVG or base64) or external URL
       const isDataUrl = result.imageUrl.startsWith('data:');
 
       if (isDataUrl) {
