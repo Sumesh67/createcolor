@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "app/api/generate/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/edit/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/party-pack/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/print/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}

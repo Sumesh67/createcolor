@@ -1,0 +1,120 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CHILD
+  PARENT
+}
+
+enum PrintStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  image         String?
+  password      String?
+  role          UserRole       @default(CHILD)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  pages         ColoringPage[]
+  galleries     Gallery[]
+  printJobs     PrintJob[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model ColoringPage {
+  id           String     @id @default(cuid())
+  userId       String
+  prompt       String
+  imageUrl     String
+  thumbnailUrl String?
+  editHistory  Json       @default("[]")
+  tags         String[]
+  isPublic     Boolean    @default(false)
+  remixCount   Int        @default(0)
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  printJobs    PrintJob[]
+  galleries    GalleryPage[]
+}
+
+model Gallery {
+  id        String        @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pages     GalleryPage[]
+}
+
+model GalleryPage {
+  id        String       @id @default(cuid())
+  galleryId String
+  pageId    String
+  gallery   Gallery      @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  page      ColoringPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+}
+
+model PrintJob {
+  id        String      @id @default(cuid())
+  userId    String
+  pageId    String
+  layout    String      @default("single")
+  pdfUrl    String?
+  qrCode    String?
+  status    PrintStatus @default(pending)
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page      ColoringPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+}

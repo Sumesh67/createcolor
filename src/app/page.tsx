@@ -1,101 +1,233 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Sparkles, Mic, Printer, Package, Upload, Users } from "lucide-react";
+
+export default function HomePage() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <main className="min-h-screen bg-background">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden px-4 pt-20 pb-16 sm:pt-32 sm:pb-24">
+        {/* Background decoration */}
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute top-20 left-10 w-20 h-20 bg-primary/20 rounded-full blur-xl" />
+          <div className="absolute top-40 right-20 w-32 h-32 bg-secondary/20 rounded-full blur-xl" />
+          <div className="absolute bottom-20 left-1/4 w-24 h-24 bg-accent/30 rounded-full blur-xl" />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+
+        <div className="max-w-4xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <h1 className="font-display text-4xl sm:text-6xl font-bold text-foreground mb-6">
+              Turn imagination into{" "}
+              <span className="text-primary">coloring pages!</span>{" "}
+              <motion.span
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }}
+                className="inline-block"
+              >
+                ✨
+              </motion.span>
+            </h1>
+            <p className="font-body text-lg sm:text-xl text-foreground/70 mb-8 max-w-2xl mx-auto">
+              Create magical custom coloring pages for kids with AI. Just spin, speak, or type your idea - and watch it come to life!
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center"
+          >
+            <Link href="/create">
+              <Button variant="primary" size="xl">
+                <Sparkles className="w-5 h-5 mr-2" />
+                Start Creating
+              </Button>
+            </Link>
+            <Link href="#how-it-works">
+              <Button variant="outline" size="xl">
+                See How It Works
+              </Button>
+            </Link>
+          </motion.div>
+        </div>
+
+        {/* Animated Sample Pages */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-16 flex justify-center gap-4 overflow-hidden"
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+          {["🦄", "🦖", "🚀"].map((emoji, i) => (
+            <motion.div
+              key={emoji}
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.6 + i * 0.2, type: "spring" }}
+              className="w-32 h-40 sm:w-48 sm:h-60 bg-white rounded-2xl shadow-card flex items-center justify-center"
+            >
+              <span className="text-5xl sm:text-7xl">{emoji}</span>
+            </motion.div>
+          ))}
+        </motion.div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how-it-works" className="py-16 px-4 bg-white">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="font-display text-3xl sm:text-4xl font-bold text-center mb-12">
+            How It Works
+          </h2>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                step: "1",
+                emoji: "🎰",
+                title: "Spin or Speak",
+                description: "Use our fun slot machine to mix characters, actions, and places - or just tell us what you want!",
+              },
+              {
+                step: "2",
+                emoji: "✨",
+                title: "AI Magic",
+                description: "Our AI creates a unique coloring page just for you in seconds!",
+              },
+              {
+                step: "3",
+                emoji: "🖨️",
+                title: "Print & Color",
+                description: "Download or print your page instantly. Time to get those crayons out!",
+              },
+            ].map((item, i) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                viewport={{ once: true }}
+                className="text-center"
+              >
+                <div className="w-20 h-20 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
+                  <span className="text-4xl">{item.emoji}</span>
+                </div>
+                <h3 className="font-display text-xl font-bold mb-2">{item.title}</h3>
+                <p className="font-body text-foreground/70">{item.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="py-16 px-4">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="font-display text-3xl sm:text-4xl font-bold text-center mb-12">
+            Features Kids & Parents Love
+          </h2>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                icon: Sparkles,
+                title: "Kid-Friendly Creator",
+                description: "Simple slot machine interface perfect for little fingers",
+                color: "text-primary",
+              },
+              {
+                icon: Mic,
+                title: "Voice Prompts",
+                description: "Just say what you want to draw - no typing needed!",
+                color: "text-secondary",
+              },
+              {
+                icon: Printer,
+                title: "Instant Print",
+                description: "Download PDFs or print directly to your printer",
+                color: "text-purple",
+              },
+              {
+                icon: Package,
+                title: "Party Packs",
+                description: "Generate 20 themed pages at once for birthday parties",
+                color: "text-accent",
+              },
+              {
+                icon: Upload,
+                title: "Photo to Coloring",
+                description: "Turn any photo into a coloring page outline",
+                color: "text-primary",
+              },
+              {
+                icon: Users,
+                title: "Community Gallery",
+                description: "Share and discover coloring pages from other kids",
+                color: "text-secondary",
+              },
+            ].map((feature, i) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }}
+                viewport={{ once: true }}
+              >
+                <Card hover className="h-full">
+                  <CardContent className="pt-6">
+                    <feature.icon className={`w-10 h-10 ${feature.color} mb-4`} />
+                    <h3 className="font-display text-lg font-bold mb-2">{feature.title}</h3>
+                    <p className="font-body text-foreground/70 text-sm">{feature.description}</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-16 px-4 bg-gradient-to-r from-primary to-purple">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="font-display text-3xl sm:text-4xl font-bold text-white mb-6">
+            Ready to Create Magic? ✨
+          </h2>
+          <p className="font-body text-white/90 text-lg mb-8">
+            Start making personalized coloring pages for free!
+          </p>
+          <Link href="/create">
+            <Button variant="accent" size="xl">
+              Start Creating Now
+            </Button>
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-8 px-4 bg-foreground text-white">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="font-display text-xl">
+            Create<span className="text-primary">and</span>Color
+          </div>
+          <div className="flex gap-6 font-body text-sm text-white/70">
+            <Link href="/create" className="hover:text-white">Create</Link>
+            <Link href="/gallery" className="hover:text-white">Gallery</Link>
+            <Link href="/community" className="hover:text-white">Community</Link>
+            <Link href="/parent" className="hover:text-white">Parents</Link>
+          </div>
+          <p className="font-body text-sm text-white/50">
+            © 2024 Create and Color
+          </p>
+        </div>
       </footer>
-    </div>
+    </main>
   );
 }
