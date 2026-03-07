@@ -224,7 +224,7 @@ export default function HomePage() {
             <Link href="/parent" className="hover:text-white">Parents</Link>
           </div>
           <p className="font-body text-sm text-white/50">
-            © 2024 Create and Color
+            © 2026 CreateAndColor. All rights reserved.
           </p>
         </div>
       </footer>

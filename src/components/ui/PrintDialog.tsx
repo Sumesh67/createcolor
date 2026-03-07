@@ -49,22 +49,53 @@ export function PrintDialog({
           <head>
             <title>Print Coloring Page</title>
             <style>
-              @media print {
-                body { margin: 0; padding: 0; }
-                img { width: 100%; height: auto; max-height: 100vh; object-fit: contain; }
+              @page {
+                size: auto;
+                margin: 10mm;
+              }
+              * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+              }
+              html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
               }
               body {
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                min-height: 100vh;
-                margin: 0;
               }
-              img { max-width: 100%; }
+              img {
+                max-width: 100%;
+                max-height: 100vh;
+                width: auto;
+                height: auto;
+                object-fit: contain;
+                page-break-inside: avoid;
+              }
+              @media print {
+                html, body {
+                  width: 100%;
+                  height: 100%;
+                }
+                img {
+                  max-width: 100%;
+                  max-height: 100%;
+                  width: auto;
+                  height: auto;
+                  page-break-inside: avoid;
+                  page-break-after: avoid;
+                  page-break-before: avoid;
+                }
+              }
             </style>
           </head>
           <body>
-            <img src="${imageUrl}" alt="Coloring Page" onload="window.print(); window.close();" />
+            <img src="${imageUrl}" alt="Coloring Page" onload="setTimeout(() => { window.print(); window.close(); }, 100);" />
           </body>
         </html>
       `);

@@ -5,15 +5,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { SlotMachine } from "@/components/kid-mode/SlotMachine";
 import { VoicePrompt } from "@/components/kid-mode/VoicePrompt";
+import { TextPrompt } from "@/components/kid-mode/TextPrompt";
 import { ColoringCanvas } from "@/components/kid-mode/ColoringCanvas";
 import { EditPanel } from "@/components/kid-mode/EditPanel";
 import { PrintDialog } from "@/components/ui/PrintDialog";
+import { SaveDialog } from "@/components/ui/SaveDialog";
 import { ConfettiEffect } from "@/components/ui/ConfettiEffect";
 import { Button } from "@/components/ui/Button";
 import { SlotSelections, EditMode, EditHistoryItem } from "@/types";
-import { ArrowLeft, Dices, Mic, Images } from "lucide-react";
+import { ArrowLeft, Dices, Mic, Pencil, Images } from "lucide-react";
 
-type InputMode = "slots" | "voice";
+type InputMode = "slots" | "voice" | "type";
 
 export default function CreatePage() {
   const [inputMode, setInputMode] = useState<InputMode>("slots");
@@ -23,6 +25,7 @@ export default function CreatePage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showEditPanel, setShowEditPanel] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [editHistory, setEditHistory] = useState<EditHistoryItem[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -267,18 +270,29 @@ export default function CreatePage() {
               }`}
             >
               <Dices className="w-4 h-4" />
-              Slot Machine
+              Spin It
             </button>
             <button
               onClick={() => setInputMode("voice")}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl font-display text-sm transition-colors ${
                 inputMode === "voice"
-                  ? "bg-primary text-white"
+                  ? "bg-secondary text-white"
                   : "text-foreground/70 hover:text-foreground"
               }`}
             >
               <Mic className="w-4 h-4" />
-              Voice
+              Say It
+            </button>
+            <button
+              onClick={() => setInputMode("type")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-display text-sm transition-colors ${
+                inputMode === "type"
+                  ? "bg-purple text-white"
+                  : "text-foreground/70 hover:text-foreground"
+              }`}
+            >
+              <Pencil className="w-4 h-4" />
+              Type It
             </button>
           </div>
         </div>
@@ -301,7 +315,7 @@ export default function CreatePage() {
           {/* Input Section */}
           <div>
             <AnimatePresence mode="wait">
-              {inputMode === "slots" ? (
+              {inputMode === "slots" && (
                 <motion.div
                   key="slots"
                   initial={{ opacity: 0, x: -20 }}
@@ -310,7 +324,8 @@ export default function CreatePage() {
                 >
                   <SlotMachine onGenerate={handleGenerate} isGenerating={isGenerating} />
                 </motion.div>
-              ) : (
+              )}
+              {inputMode === "voice" && (
                 <motion.div
                   key="voice"
                   initial={{ opacity: 0, x: 20 }}
@@ -318,6 +333,16 @@ export default function CreatePage() {
                   exit={{ opacity: 0, x: -20 }}
                 >
                   <VoicePrompt onTranscript={handleVoiceGenerate} isGenerating={isGenerating} />
+                </motion.div>
+              )}
+              {inputMode === "type" && (
+                <motion.div
+                  key="type"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                >
+                  <TextPrompt onSubmit={handleVoiceGenerate} isGenerating={isGenerating} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -330,7 +355,7 @@ export default function CreatePage() {
               isLoading={isGenerating}
               onEdit={() => setShowEditPanel(true)}
               onPrint={() => setShowPrintDialog(true)}
-              onDownload={handleDownload}
+              onDownload={() => setShowSaveDialog(true)}
               onShare={handleShare}
             />
           </div>
@@ -380,6 +405,17 @@ export default function CreatePage() {
             setShowPrintDialog(false);
             handlePrint();
           }}
+        />
+      )}
+
+      {/* Save Dialog */}
+      {imageUrl && (
+        <SaveDialog
+          isOpen={showSaveDialog}
+          onClose={() => setShowSaveDialog(false)}
+          imageUrl={imageUrl}
+          prompt={currentPrompt}
+          onDownload={handleDownload}
         />
       )}
     </div>

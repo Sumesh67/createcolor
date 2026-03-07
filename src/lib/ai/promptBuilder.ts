@@ -45,16 +45,56 @@ export const SLOT_OPTIONS = {
   ],
 };
 
+// ==========================================
+// LAYER 2: AI-LEVEL SAFETY (Prompt Engineering)
+// ==========================================
+
+// Safety prefix - ALWAYS prepended to every prompt
+const SAFETY_PREFIX = "Safe for children, family-friendly, G-rated, appropriate for ages 3-10, cute and friendly,";
+
+// Safety suffix - ALWAYS appended to every prompt
+const SAFETY_SUFFIX = "NO nudity, NO violence, NO scary content, NO adult themes, NO weapons, NO blood, NO inappropriate content";
+
+// Coloring page style suffix
 const COLORING_PAGE_SUFFIX = "children's coloring page, clean black outlines only, pure white background, bold thick lines, no shading, no gradients, no color fills, simple cartoon shapes, large open areas for coloring, printable coloring book page";
+
+/**
+ * Build a safe prompt with all safety layers applied
+ */
+function buildSafePrompt(basePrompt: string): string {
+  return `${SAFETY_PREFIX} ${basePrompt}, ${COLORING_PAGE_SUFFIX}, ${SAFETY_SUFFIX}`;
+}
+
+/**
+ * Get DALL-E 3 configuration with safety settings
+ */
+export function getDallE3Config() {
+  return {
+    model: "dall-e-3" as const,
+    style: "natural" as const,
+    quality: "standard" as const,
+    size: "1024x1024" as const,
+    systemMessage: "You are a children's coloring book illustrator. Only generate age-appropriate, G-rated, family-friendly content. Never include nudity, violence, scary elements, or adult themes.",
+  };
+}
+
+/**
+ * Get Pollinations.ai URL with safety parameters
+ */
+export function getPollinationsUrl(prompt: string): string {
+  const safePrompt = buildSafePrompt(prompt);
+  const encodedPrompt = encodeURIComponent(safePrompt);
+  return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&safe=true&model=turbo`;
+}
 
 export function buildPromptFromSlots(selections: SlotSelections): string {
   const { who, doing, where } = selections;
   const basePrompt = `A ${who.toLowerCase()} ${doing.toLowerCase()} ${where.toLowerCase()}`;
-  return `${basePrompt}, ${COLORING_PAGE_SUFFIX}`;
+  return buildSafePrompt(basePrompt);
 }
 
 export function buildCustomPrompt(customText: string): string {
-  return `${customText}, ${COLORING_PAGE_SUFFIX}`;
+  return buildSafePrompt(customText);
 }
 
 export function buildEditPrompt(
@@ -81,7 +121,15 @@ export function buildEditPrompt(
       editedPrompt = originalPrompt;
   }
 
-  return `${editedPrompt}, ${COLORING_PAGE_SUFFIX}`;
+  return buildSafePrompt(editedPrompt);
+}
+
+/**
+ * Get the raw user prompt (for display purposes, without safety wrappers)
+ */
+export function getDisplayPrompt(selections: SlotSelections): string {
+  const { who, doing, where } = selections;
+  return `A ${who.toLowerCase()} ${doing.toLowerCase()} ${where.toLowerCase()}`;
 }
 
 export function getRandomSelection(): SlotSelections {

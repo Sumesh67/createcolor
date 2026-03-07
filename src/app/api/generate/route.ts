@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { generateColoringPage } from '@/lib/ai/generateColoringPage';
-import { buildPromptFromSlots, buildCustomPrompt } from '@/lib/ai/promptBuilder';
+import { buildPromptFromSlots, buildCustomPrompt, getDisplayPrompt } from '@/lib/ai/promptBuilder';
 import { checkPromptSafety } from '@/lib/ai/safetyFilter';
+import { filterPrompt } from '@/lib/safety/input-filter';
 import { processImageForColoring, createThumbnail, fetchImage } from '@/lib/image/processImage';
 import { convertPhotoToColoringPage } from '@/lib/image/imageToOutline';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
@@ -65,10 +66,21 @@ export async function POST(request: NextRequest) {
         customPrompt?: string;
       };
 
-      // Build prompt
+      // Get session info early
+      const session = await getServerSession(authOptions);
+      const userId = (session?.user as SessionUser)?.id;
+
+      // Determine the raw user prompt (for filtering) and display prompt
+      let userPrompt: string;
+      let displayPrompt: string;
+
       if (slotSelections) {
+        userPrompt = `${slotSelections.who} ${slotSelections.doing} ${slotSelections.where}`;
+        displayPrompt = getDisplayPrompt(slotSelections);
         prompt = buildPromptFromSlots(slotSelections);
       } else if (customPrompt) {
+        userPrompt = customPrompt;
+        displayPrompt = customPrompt;
         prompt = buildCustomPrompt(customPrompt);
       } else {
         return NextResponse.json(
@@ -77,32 +89,49 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Safety check
-      const safetyResult = await checkPromptSafety(prompt);
-      if (!safetyResult.safe) {
+      // ==========================================
+      // LAYER 1: INPUT FILTERING (Blocklist + OpenAI Moderation)
+      // ==========================================
+      const inputFilterResult = await filterPrompt(userPrompt);
+      if (!inputFilterResult.safe) {
         return NextResponse.json(
           {
             error: 'Content not allowed',
-            message: "That doesn't sound right, try something else!",
+            message: inputFilterResult.reason || "Let's try something more fun! 🌈",
           },
           { status: 400 }
         );
       }
 
+      // Also run legacy safety check
+      const legacySafetyResult = await checkPromptSafety(userPrompt);
+      if (!legacySafetyResult.safe) {
+        return NextResponse.json(
+          {
+            error: 'Content not allowed',
+            message: legacySafetyResult.reason || "Let's try something different!",
+          },
+          { status: 400 }
+        );
+      }
+
+      // ==========================================
+      // LAYER 2: AI-LEVEL SAFETY (Built into prompt via buildPromptFromSlots/buildCustomPrompt)
+      // The prompt now includes safety prefix/suffix automatically
+      // ==========================================
+
       // Generate coloring page image
       const result = await generateColoringPage(prompt);
+      const generatedImageUrl = result.imageUrl;
 
       // Check if it's a data URL (SVG or base64) or external URL
-      const isDataUrl = result.imageUrl.startsWith('data:');
+      const isDataUrl = generatedImageUrl.startsWith('data:');
 
       if (isDataUrl) {
         // Data URLs can be used directly
-        imageUrl = result.imageUrl;
-        const thumbnailUrl = result.imageUrl;
+        imageUrl = generatedImageUrl;
+        const thumbnailUrl = generatedImageUrl;
 
-        // Get session and save to database if authenticated
-        const session = await getServerSession(authOptions);
-        const userId = (session?.user as SessionUser)?.id;
         let pageId = `temp_${Date.now()}`;
 
         if (userId) {
@@ -122,37 +151,66 @@ export async function POST(request: NextRequest) {
           imageUrl,
           thumbnailUrl,
           pageId,
-          prompt,
+          prompt: displayPrompt,
           remaining: rateLimit.remaining,
         });
       }
 
       // For other image APIs (like DALL-E), fetch and process
-      const generatedBuffer = await fetchImage(result.imageUrl);
+      const generatedBuffer = await fetchImage(generatedImageUrl);
       processedBuffer = await processImageForColoring(generatedBuffer);
 
       // Upload processed image
       imageUrl = isS3Configured()
         ? await uploadImage(processedBuffer)
         : bufferToDataUrl(processedBuffer);
+
+      // Create thumbnail
+      const thumbnailBuffer = await createThumbnail(processedBuffer);
+      const thumbnailUrl = isS3Configured()
+        ? await uploadImage(thumbnailBuffer)
+        : bufferToDataUrl(thumbnailBuffer);
+
+      let pageId = `temp_${Date.now()}`;
+
+      if (userId) {
+        await connectDB();
+
+        const page = await ColoringPage.create({
+          userId: new mongoose.Types.ObjectId(userId),
+          prompt: displayPrompt,
+          imageUrl,
+          thumbnailUrl,
+        });
+
+        pageId = page._id.toString();
+      }
+
+      return NextResponse.json({
+        imageUrl,
+        thumbnailUrl,
+        pageId,
+        prompt: displayPrompt,
+        remaining: rateLimit.remaining,
+      });
     }
 
-    // Create thumbnail (for non-Pollinations images)
+    // Create thumbnail (for non-Pollinations images - image upload case)
     const thumbnailBuffer = await createThumbnail(processedBuffer);
     const thumbnailUrl = isS3Configured()
       ? await uploadImage(thumbnailBuffer)
       : bufferToDataUrl(thumbnailBuffer);
 
-    // Get session and save to database if authenticated
+    // Get session and save to database if authenticated (image upload case)
     const session = await getServerSession(authOptions);
-    const userId = (session?.user as SessionUser)?.id;
+    const uploadUserId = (session?.user as SessionUser)?.id;
     let pageId = `temp_${Date.now()}`;
 
-    if (userId) {
+    if (uploadUserId) {
       await connectDB();
 
       const page = await ColoringPage.create({
-        userId: new mongoose.Types.ObjectId(userId),
+        userId: new mongoose.Types.ObjectId(uploadUserId),
         prompt,
         imageUrl,
         thumbnailUrl,

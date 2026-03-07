@@ -1,13 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { PartyPackBuilder } from "@/components/parent/PartyPackBuilder";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ArrowLeft, Palette, Printer, Calendar, Settings } from "lucide-react";
+import { ArrowLeft, Palette, Printer, Calendar, Settings, Shield, Lock, AlertTriangle, Check, X } from "lucide-react";
 import { PrintLayout } from "@/types";
+
+// Theme categories for whitelist
+const THEME_CATEGORIES = [
+  { id: "animals", label: "Animals", emoji: "🐱", default: true },
+  { id: "fantasy", label: "Fantasy", emoji: "🦄", default: true },
+  { id: "space", label: "Space", emoji: "🚀", default: true },
+  { id: "food", label: "Food", emoji: "🍕", default: true },
+  { id: "sports", label: "Sports", emoji: "⚽", default: true },
+  { id: "nature", label: "Nature", emoji: "🌲", default: true },
+  { id: "superheroes", label: "Superheroes", emoji: "🦸", default: false },
+  { id: "monsters", label: "Monsters (mild)", emoji: "👻", default: false },
+];
 
 interface PartyPackResult {
   pdfUrl: string;
@@ -15,9 +28,66 @@ interface PartyPackResult {
 }
 
 export default function ParentPage() {
+  const { data: session } = useSession();
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<PartyPackResult | null>(null);
+
+  // PIN Protection
+  const [isPinLocked, setIsPinLocked] = useState(true);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState(false);
+  const [storedPin, setStoredPin] = useState("1234"); // Default PIN
+
+  // Safety Settings
+  const [strictMode, setStrictMode] = useState(true);
+  const [allowedThemes, setAllowedThemes] = useState<string[]>(
+    THEME_CATEGORIES.filter(t => t.default).map(t => t.id)
+  );
+  const [allowCommunitySharing, setAllowCommunitySharing] = useState(false);
+  const [flaggedAttempts, setFlaggedAttempts] = useState<Array<{
+    id: string;
+    date: string;
+    category: string;
+  }>>([]);
+
+  // Load flagged attempts
+  useEffect(() => {
+    if (session?.user && !isPinLocked) {
+      fetchFlaggedAttempts();
+    }
+  }, [session, isPinLocked]);
+
+  const fetchFlaggedAttempts = async () => {
+    try {
+      const response = await fetch("/api/safety/flagged");
+      if (response.ok) {
+        const data = await response.json();
+        setFlaggedAttempts(data.attempts || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch flagged attempts:", error);
+    }
+  };
+
+  const handlePinSubmit = () => {
+    if (pinInput === storedPin) {
+      setIsPinLocked(false);
+      setPinError(false);
+      setPinInput("");
+    } else {
+      setPinError(true);
+      setPinInput("");
+    }
+  };
+
+  const handleThemeToggle = (themeId: string) => {
+    setAllowedThemes(prev =>
+      prev.includes(themeId)
+        ? prev.filter(id => id !== themeId)
+        : [...prev, themeId]
+    );
+  };
 
   const handleGeneratePartyPack = async (config: {
     theme: string;
@@ -163,7 +233,7 @@ export default function ParentPage() {
           </Card>
         </motion.div>
 
-        {/* Content Settings */}
+        {/* Safety Settings */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -172,26 +242,70 @@ export default function ParentPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5 text-purple" />
-                Content Settings
+                <Shield className="w-5 h-5 text-green-500" />
+                Safety Settings
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="space-y-6">
+                {/* Strict Mode Toggle */}
+                <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl">
                   <div>
-                    <div className="font-display text-sm font-semibold">Safe Mode</div>
-                    <div className="font-body text-xs text-gray-500">
-                      Extra content filtering for young children
+                    <div className="font-display text-sm font-semibold flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-green-600" />
+                      Strict Mode
+                    </div>
+                    <div className="font-body text-xs text-gray-500 mt-1">
+                      Only allows pre-approved themes (recommended for ages 3-7)
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={strictMode}
+                      onChange={(e) => setStrictMode(e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                   </label>
                 </div>
 
-                <div className="flex items-center justify-between">
+                {/* Theme Whitelist */}
+                <AnimatePresence>
+                  {strictMode && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      <div className="font-display text-sm font-semibold mb-3">
+                        Allowed Themes
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {THEME_CATEGORIES.map((theme) => (
+                          <button
+                            key={theme.id}
+                            onClick={() => handleThemeToggle(theme.id)}
+                            className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                              allowedThemes.includes(theme.id)
+                                ? "border-primary bg-primary/10"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                            }`}
+                          >
+                            <span className="text-xl">{theme.emoji}</span>
+                            <span className="font-body text-sm">{theme.label}</span>
+                            {allowedThemes.includes(theme.id) && (
+                              <Check className="w-4 h-4 text-primary ml-auto" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Community Sharing */}
+                <div className="flex items-center justify-between py-3 border-t border-gray-100">
                   <div>
                     <div className="font-display text-sm font-semibold">Allow Community Sharing</div>
                     <div className="font-body text-xs text-gray-500">
@@ -199,7 +313,12 @@ export default function ParentPage() {
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" />
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={allowCommunitySharing}
+                      onChange={(e) => setAllowCommunitySharing(e.target.checked)}
+                    />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                   </label>
                 </div>
@@ -207,7 +326,190 @@ export default function ParentPage() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Flagged Attempts Log */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                Flagged Attempts
+                {flaggedAttempts.length > 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
+                    {flaggedAttempts.length}
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {flaggedAttempts.length === 0 ? (
+                <div className="text-center py-6 text-gray-500">
+                  <Shield className="w-12 h-12 mx-auto mb-2 text-green-300" />
+                  <p className="font-body text-sm">No flagged attempts</p>
+                  <p className="font-body text-xs text-gray-400 mt-1">
+                    All content has been appropriate
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {flaggedAttempts.map((attempt) => (
+                    <div
+                      key={attempt.id}
+                      className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl"
+                    >
+                      <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                      <div className="flex-1">
+                        <div className="font-body text-sm">
+                          Blocked: {attempt.category}
+                        </div>
+                        <div className="font-body text-xs text-gray-500">
+                          {attempt.date}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="font-body text-xs text-gray-500 text-center mt-2">
+                    Actual prompts are hidden for privacy
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* PIN Settings */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="w-5 h-5 text-purple" />
+                Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-display text-sm font-semibold">Change PIN</div>
+                  <div className="font-body text-xs text-gray-500">
+                    Update the PIN required to access Parent Portal
+                  </div>
+                </div>
+                <Button variant="outline" size="sm">
+                  Change PIN
+                </Button>
+              </div>
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                <div>
+                  <div className="font-display text-sm font-semibold">Lock Portal</div>
+                  <div className="font-body text-xs text-gray-500">
+                    Lock the Parent Portal now
+                  </div>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setIsPinLocked(true)}
+                >
+                  <Lock className="w-4 h-4 mr-2" />
+                  Lock Now
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </main>
+
+      {/* PIN Lock Overlay */}
+      <AnimatePresence>
+        {isPinLocked && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-background flex items-center justify-center"
+          >
+            <div className="text-center max-w-sm mx-auto px-4">
+              <motion.div
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                className="w-20 h-20 mx-auto mb-6 bg-purple/10 rounded-full flex items-center justify-center"
+              >
+                <Lock className="w-10 h-10 text-purple" />
+              </motion.div>
+              <h2 className="font-display text-2xl font-bold mb-2">Parent Portal</h2>
+              <p className="font-body text-gray-500 mb-6">
+                Enter PIN to access settings
+              </p>
+              <div className="flex justify-center gap-2 mb-4">
+                {[1, 2, 3, 4].map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center text-xl font-bold ${
+                      pinInput.length > i
+                        ? "border-purple bg-purple/10 text-purple"
+                        : "border-gray-200"
+                    } ${pinError ? "border-red-400 bg-red-50" : ""}`}
+                  >
+                    {pinInput.length > i ? "•" : ""}
+                  </div>
+                ))}
+              </div>
+              {pinError && (
+                <p className="font-body text-sm text-red-500 mb-4">
+                  Incorrect PIN. Try again.
+                </p>
+              )}
+              <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, "", 0, "⌫"].map((key, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      if (key === "⌫") {
+                        setPinInput(prev => prev.slice(0, -1));
+                        setPinError(false);
+                      } else if (key !== "" && pinInput.length < 4) {
+                        const newPin = pinInput + key;
+                        setPinInput(newPin);
+                        setPinError(false);
+                        if (newPin.length === 4) {
+                          setTimeout(() => {
+                            if (newPin === storedPin) {
+                              setIsPinLocked(false);
+                              setPinInput("");
+                            } else {
+                              setPinError(true);
+                              setPinInput("");
+                            }
+                          }, 300);
+                        }
+                      }
+                    }}
+                    className={`h-14 rounded-xl font-display text-xl transition-colors ${
+                      key === ""
+                        ? "invisible"
+                        : "bg-gray-100 hover:bg-gray-200 active:bg-gray-300"
+                    }`}
+                    disabled={key === ""}
+                  >
+                    {key}
+                  </button>
+                ))}
+              </div>
+              <p className="font-body text-xs text-gray-400 mt-6">
+                Default PIN: 1234
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
