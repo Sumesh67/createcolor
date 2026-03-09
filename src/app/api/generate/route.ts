@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   try {
     // Rate limiting
     const identifier = getRateLimitIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 15, windowMs: 60 * 60 * 1000 });
+    const rateLimit = checkRateLimit(identifier, { maxRequests: 30, windowMs: 60 * 60 * 1000 });
 
     if (!rateLimit.allowed) {
       return NextResponse.json(
