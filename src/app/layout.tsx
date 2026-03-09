@@ -18,6 +18,22 @@ const nunito = Nunito({
 export const metadata: Metadata = {
   title: "Create and Color - Turn Imagination into Coloring Pages",
   description: "Generate custom coloring pages for kids using AI. Kid-friendly, instant print, and endless creativity!",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Create and Color",
+  },
 };
 
 export default function RootLayout({
