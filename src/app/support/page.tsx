@@ -29,10 +29,10 @@ export default function SupportPage() {
               Have a question or need help? Send us an email and we&apos;ll get back to you within 24 hours.
             </p>
             <a
-              href="mailto:support@createandcolor.com"
+              href="mailto:createandcolor.app@gmail.com"
               className="text-pink-500 font-medium hover:text-pink-600"
             >
-              support@createandcolor.com
+              createandcolor.app@gmail.com
             </a>
           </div>
 
@@ -117,7 +117,7 @@ export default function SupportPage() {
             <Link href="/privacy" className="text-cyan-500 font-medium hover:text-cyan-600">
               Privacy Policy
             </Link>
-            <a href="mailto:legal@createandcolor.com" className="text-cyan-500 font-medium hover:text-cyan-600">
+            <a href="mailto:createandcolor.app@gmail.com" className="text-cyan-500 font-medium hover:text-cyan-600">
               Terms of Service
             </a>
           </div>

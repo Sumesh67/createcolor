@@ -101,7 +101,7 @@ export default function PrivacyPage() {
             If you have questions about this Privacy Policy or our practices, please contact us at:
           </p>
           <p className="text-gray-600 mt-2">
-            Email: privacy@createandcolor.com
+            Email: <a href="mailto:createandcolor.app@gmail.com" className="text-pink-500 hover:text-pink-600">createandcolor.app@gmail.com</a>
           </p>
         </section>
 
