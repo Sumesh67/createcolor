@@ -4,7 +4,9 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Sparkles, Mic, Printer, Package, Upload, Users } from "lucide-react";
+import { Sparkles, Mic, Printer, Package, Upload, Users, Apple } from "lucide-react";
+
+const APP_STORE_URL = "https://apps.apple.com/app/id6760249757";
 
 export default function HomePage() {
   return (
@@ -57,6 +59,27 @@ export default function HomePage() {
                 See How It Works
               </Button>
             </Link>
+          </motion.div>
+
+          {/* App Store Download */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="mt-8"
+          >
+            <a
+              href={APP_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-3 bg-black text-white px-6 py-3 rounded-xl hover:bg-gray-800 transition-colors"
+            >
+              <Apple className="w-8 h-8" />
+              <div className="text-left">
+                <div className="text-xs opacity-80">Download on the</div>
+                <div className="text-lg font-semibold -mt-1">App Store</div>
+              </div>
+            </a>
           </motion.div>
         </div>
 
@@ -223,6 +246,17 @@ export default function HomePage() {
             <Link href="/community" className="hover:text-white">Community</Link>
             <Link href="/parent" className="hover:text-white">Parents</Link>
           </div>
+          <a
+            href={APP_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-colors"
+          >
+            <Apple className="w-5 h-5" />
+            <span className="text-sm">Get iOS App</span>
+          </a>
+        </div>
+        <div className="max-w-5xl mx-auto mt-4 text-center">
           <p className="font-body text-sm text-white/50">
             © 2026 CreateAndColor. All rights reserved.
           </p>
