@@ -6,6 +6,7 @@ import Link from "next/link";
 import { SlotMachine } from "@/components/kid-mode/SlotMachine";
 import { VoicePrompt } from "@/components/kid-mode/VoicePrompt";
 import { TextPrompt } from "@/components/kid-mode/TextPrompt";
+import { MagicLensUpload } from "@/components/kid-mode/MagicLensUpload";
 import { ColoringCanvas } from "@/components/kid-mode/ColoringCanvas";
 import { EditPanel } from "@/components/kid-mode/EditPanel";
 import { PrintDialog } from "@/components/ui/PrintDialog";
@@ -14,9 +15,9 @@ import { ReviewPrompt } from "@/components/ui/ReviewPrompt";
 import { ConfettiEffect } from "@/components/ui/ConfettiEffect";
 import { Button } from "@/components/ui/Button";
 import { SlotSelections, EditMode, EditHistoryItem } from "@/types";
-import { ArrowLeft, Dices, Mic, Pencil, Images } from "lucide-react";
+import { ArrowLeft, Dices, Mic, Pencil, Camera, Images } from "lucide-react";
 
-type InputMode = "slots" | "voice" | "type";
+type InputMode = "slots" | "voice" | "type" | "photo";
 
 export default function CreatePage() {
   const [inputMode, setInputMode] = useState<InputMode>("slots");
@@ -296,6 +297,17 @@ export default function CreatePage() {
               <Pencil className="w-4 h-4" />
               Type It
             </button>
+            <button
+              onClick={() => setInputMode("photo")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-display text-sm transition-colors ${
+                inputMode === "photo"
+                  ? "bg-accent text-white"
+                  : "text-foreground/70 hover:text-foreground"
+              }`}
+            >
+              <Camera className="w-4 h-4" />
+              Magic Lens
+            </button>
           </div>
         </div>
 
@@ -345,6 +357,25 @@ export default function CreatePage() {
                   exit={{ opacity: 0, x: -20 }}
                 >
                   <TextPrompt onSubmit={handleVoiceGenerate} isGenerating={isGenerating} />
+                </motion.div>
+              )}
+              {inputMode === "photo" && (
+                <motion.div
+                  key="photo"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                >
+                  <MagicLensUpload
+                    onImageConverted={(url, prompt) => {
+                      setImageUrl(url);
+                      setCurrentPrompt(prompt);
+                      setShowConfetti(true);
+                      setTimeout(() => setShowConfetti(false), 3000);
+                    }}
+                    isProcessing={isGenerating}
+                    setIsProcessing={setIsGenerating}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
