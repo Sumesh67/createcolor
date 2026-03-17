@@ -329,11 +329,18 @@ npx eas submit --platform android --profile production
 
 ## Growth Features (Added March 2026)
 
+### Web App
 1. **Share Button** - Gallery page has "Share with Parent" button using Web Share API
 2. **PDF Watermark** - All PDFs include "Created for free at CreateColor.app"
 3. **Review Prompt** - After 5 prints, shows App Store review popup
 4. **SEO Optimization** - Keywords: "free coloring pages for kids", "AI coloring book", etc.
 5. **App Store Link** - Homepage has App Store download button
+
+### iOS App
+1. **Share App Button** - Gallery screen has "Share App" button to share app link with parents
+2. **Save Count Tracking** - Tracks number of coloring pages saved
+3. **Review Prompt** - After 5 saves, shows "Enjoying the magic?" popup with App Store link
+4. **Watermark Message** - Save success messages mention "Created with CreateAndColor.app"
 
 ---
 
