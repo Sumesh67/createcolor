@@ -10,6 +10,7 @@ import { ColoringCanvas } from "@/components/kid-mode/ColoringCanvas";
 import { EditPanel } from "@/components/kid-mode/EditPanel";
 import { PrintDialog } from "@/components/ui/PrintDialog";
 import { SaveDialog } from "@/components/ui/SaveDialog";
+import { ReviewPrompt } from "@/components/ui/ReviewPrompt";
 import { ConfettiEffect } from "@/components/ui/ConfettiEffect";
 import { Button } from "@/components/ui/Button";
 import { SlotSelections, EditMode, EditHistoryItem } from "@/types";
@@ -29,6 +30,7 @@ export default function CreatePage() {
   const [editHistory, setEditHistory] = useState<EditHistoryItem[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [printCount, setPrintCount] = useState(0);
 
   // Load image with timeout and fallback
   const loadImageWithFallback = useCallback(async (
@@ -402,11 +404,28 @@ export default function CreatePage() {
           onClose={() => setShowPrintDialog(false)}
           imageUrl={imageUrl}
           onPrint={async () => {
+            // Call print API to generate PDF and track print count
+            try {
+              const response = await fetch("/api/print", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ imageUrl }),
+              });
+              const data = await response.json();
+              if (data.printCount) {
+                setPrintCount(data.printCount);
+              }
+            } catch (err) {
+              console.error("Print tracking error:", err);
+            }
             setShowPrintDialog(false);
             handlePrint();
           }}
         />
       )}
+
+      {/* Review Prompt */}
+      <ReviewPrompt printCount={printCount} />
 
       {/* Save Dialog */}
       {imageUrl && (

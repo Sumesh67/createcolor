@@ -16,8 +16,20 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Create and Color - Turn Imagination into Coloring Pages",
-  description: "Generate custom coloring pages for kids using AI. Kid-friendly, instant print, and endless creativity!",
+  title: "Free Coloring Pages for Kids | AI Coloring Book Generator | CreateAndColor",
+  description: "Create free coloring pages for kids with AI! Turn voice to image for children, generate printable kids activities instantly. The best AI coloring book maker - just speak, spin, or type to create custom coloring pages.",
+  keywords: [
+    "free coloring pages for kids",
+    "AI coloring book",
+    "printable kids activities",
+    "voice to image for children",
+    "coloring pages generator",
+    "custom coloring pages",
+    "kids coloring book online",
+    "AI coloring page maker",
+    "free printable coloring pages",
+    "coloring activities for children",
+  ],
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -33,6 +45,22 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "Create and Color",
+  },
+  openGraph: {
+    title: "Free Coloring Pages for Kids | AI Coloring Book Generator",
+    description: "Create free coloring pages for kids with AI! Turn voice to image, generate printable kids activities instantly.",
+    type: "website",
+    locale: "en_US",
+    siteName: "CreateAndColor",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Free Coloring Pages for Kids | AI Coloring Book Generator",
+    description: "Create free coloring pages for kids with AI! Turn voice to image, generate printable kids activities instantly.",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

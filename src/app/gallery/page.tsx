@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Gallery } from "@/components/parent/Gallery";
 import { Button } from "@/components/ui/Button";
 import { ColoringPage } from "@/types";
-import { ArrowLeft, Package } from "lucide-react";
+import { ArrowLeft, Package, Share2 } from "lucide-react";
 
 export default function GalleryPage() {
   const { data: session } = useSession();
@@ -67,6 +67,27 @@ export default function GalleryPage() {
     }
   };
 
+  const handleShare = async () => {
+    const shareData = {
+      title: "Create and Color - AI Coloring Pages",
+      text: "Check out this amazing app that creates custom coloring pages for kids using AI!",
+      url: "https://createcolor.vercel.app",
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (error) {
+        // User cancelled or share failed
+        console.log("Share cancelled");
+      }
+    } else {
+      // Fallback: copy to clipboard
+      await navigator.clipboard.writeText(shareData.url);
+      alert("Link copied to clipboard!");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -77,12 +98,18 @@ export default function GalleryPage() {
             <span className="font-body text-sm">Back</span>
           </Link>
           <h1 className="font-display text-lg font-bold">My Gallery</h1>
-          <Link href="/parent">
-            <Button variant="secondary" size="sm">
-              <Package className="w-4 h-4 mr-2" />
-              Party Pack
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 className="w-4 h-4 mr-2" />
+              Share with Parent
             </Button>
-          </Link>
+            <Link href="/parent">
+              <Button variant="secondary" size="sm">
+                <Package className="w-4 h-4 mr-2" />
+                Party Pack
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 
