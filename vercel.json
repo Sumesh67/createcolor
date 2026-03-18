@@ -1,4 +1,12 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "github": {
+    "silent": true
+  },
   "functions": {
     "app/api/generate/route.ts": {
       "maxDuration": 60

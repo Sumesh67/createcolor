@@ -8,7 +8,7 @@ import { filterPrompt } from '@/lib/safety/input-filter';
 import { processImageForColoring, createThumbnail, fetchImage } from '@/lib/image/processImage';
 import { convertPhotoToColoringPage } from '@/lib/image/imageToOutline';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
-import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
+import { checkDailyLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
 import connectDB from '@/lib/db/connect';
 import ColoringPage from '@/lib/db/models/ColoringPage';
 import mongoose from 'mongoose';
@@ -22,16 +22,20 @@ interface SessionUser {
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
+    // Daily limit: 20 images per day, resets at midnight
     const identifier = getRateLimitIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 30, windowMs: 60 * 60 * 1000 });
+    const dailyLimit = checkDailyLimit(identifier, 20);
 
-    if (!rateLimit.allowed) {
+    if (!dailyLimit.allowed) {
+      const hoursUntilReset = Math.ceil(dailyLimit.resetIn / (60 * 60 * 1000));
       return NextResponse.json(
         {
-          error: 'Too many requests',
-          message: "You've created too many coloring pages. Please try again later!",
-          resetIn: Math.ceil(rateLimit.resetIn / 60000),
+          error: 'Daily limit reached',
+          message: `You've used all 20 free coloring pages for today! Come back tomorrow for more magic! ✨`,
+          resetIn: dailyLimit.resetIn,
+          hoursUntilReset,
+          used: dailyLimit.used,
+          limit: 20,
         },
         { status: 429 }
       );
@@ -152,7 +156,7 @@ export async function POST(request: NextRequest) {
           thumbnailUrl,
           pageId,
           prompt: displayPrompt,
-          remaining: rateLimit.remaining,
+          remaining: dailyLimit.remaining,
         });
       }
 
@@ -191,7 +195,7 @@ export async function POST(request: NextRequest) {
         thumbnailUrl,
         pageId,
         prompt: displayPrompt,
-        remaining: rateLimit.remaining,
+        remaining: dailyLimit.remaining,
       });
     }
 
@@ -224,7 +228,7 @@ export async function POST(request: NextRequest) {
       thumbnailUrl,
       pageId,
       prompt,
-      remaining: rateLimit.remaining,
+      remaining: dailyLimit.remaining,
     });
   } catch (error) {
     console.error('Error generating coloring page:', error);

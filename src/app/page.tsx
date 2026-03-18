@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Sparkles, Mic, Printer, Package, Upload, Users, Apple } from "lucide-react";
+import { Sparkles, Mic, Printer, Package, Upload, Users, Apple, BookOpen } from "lucide-react";
 
 const APP_STORE_URL = "https://apps.apple.com/app/id6760249757";
 
@@ -52,6 +52,12 @@ export default function HomePage() {
               <Button variant="primary" size="xl">
                 <Sparkles className="w-5 h-5 mr-2" />
                 Start Creating
+              </Button>
+            </Link>
+            <Link href="/storybook">
+              <Button variant="secondary" size="xl">
+                <BookOpen className="w-5 h-5 mr-2" />
+                Create Storybook
               </Button>
             </Link>
             <Link href="#how-it-works">
@@ -196,6 +202,12 @@ export default function HomePage() {
                 description: "Share and discover coloring pages from other kids",
                 color: "text-secondary",
               },
+              {
+                icon: BookOpen,
+                title: "Storybook Creator",
+                description: "Turn family photos into personalized AI storybooks!",
+                color: "text-purple",
+              },
             ].map((feature, i) => (
               <motion.div
                 key={feature.title}
@@ -242,6 +254,7 @@ export default function HomePage() {
           </div>
           <div className="flex gap-6 font-body text-sm text-white/70">
             <Link href="/create" className="hover:text-white">Create</Link>
+            <Link href="/storybook" className="hover:text-white">Storybook</Link>
             <Link href="/gallery" className="hover:text-white">Gallery</Link>
             <Link href="/community" className="hover:text-white">Community</Link>
             <Link href="/parent" className="hover:text-white">Parents</Link>

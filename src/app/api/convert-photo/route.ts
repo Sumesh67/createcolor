@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { convertPhotoToColoringPage } from '@/lib/image/imageToOutline';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import { createThumbnail } from '@/lib/image/processImage';
-import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
+import { checkDailyLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
 import connectDB from '@/lib/db/connect';
 import ColoringPage from '@/lib/db/models/ColoringPage';
 import mongoose from 'mongoose';
@@ -46,7 +46,8 @@ async function removeBackground(inputBuffer: Buffer): Promise<Buffer> {
 // Enhanced photo to coloring conversion with multiple detail levels
 async function convertWithStyle(
   buffer: Buffer,
-  style: 'simple' | 'medium' | 'detailed' = 'medium'
+  style: 'simple' | 'medium' | 'detailed' = 'medium',
+  outputStyle: 'outline' | 'colored' = 'outline'
 ): Promise<Buffer> {
   const styleConfig = {
     simple: { threshold: 180, blur: 2.5, contrast: 2.5 },
@@ -61,6 +62,43 @@ async function convertWithStyle(
     .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
     .toBuffer();
 
+  // For colored output, apply artistic effect while keeping colors
+  if (outputStyle === 'colored') {
+    const { width, height } = await sharp(resized).metadata();
+
+    // Apply a posterize/cartoon effect to keep colors but simplify
+    const posterized = await sharp(resized)
+      .modulate({ saturation: 1.3 }) // Boost saturation slightly
+      .blur(0.5)
+      .sharpen({ sigma: 1.5 })
+      .toBuffer();
+
+    // Add watermark
+    const watermarkSvg = `
+      <svg width="${width}" height="30">
+        <text x="50%" y="20" font-family="Arial, sans-serif" font-size="14" fill="#999999" text-anchor="middle">
+          Created with CreateAndColor.app
+        </text>
+      </svg>
+    `;
+
+    const final = await sharp(posterized)
+      .flatten({ background: { r: 255, g: 255, b: 255 } })
+      .extend({
+        bottom: 30,
+        background: { r: 255, g: 255, b: 255 }
+      })
+      .composite([{
+        input: Buffer.from(watermarkSvg),
+        gravity: 'south'
+      }])
+      .png({ quality: 100 })
+      .toBuffer();
+
+    return final;
+  }
+
+  // Original outline conversion for coloring pages
   // Convert to grayscale
   const grayscale = await sharp(resized)
     .grayscale()
@@ -121,16 +159,20 @@ async function convertWithStyle(
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
+    // Daily limit: 20 images per day (shared with generate), resets at midnight
     const identifier = getRateLimitIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 20, windowMs: 60 * 60 * 1000 });
+    const dailyLimit = checkDailyLimit(identifier, 20);
 
-    if (!rateLimit.allowed) {
+    if (!dailyLimit.allowed) {
+      const hoursUntilReset = Math.ceil(dailyLimit.resetIn / (60 * 60 * 1000));
       return NextResponse.json(
         {
-          error: 'Too many requests',
-          message: "You've converted too many photos. Please try again later!",
-          resetIn: Math.ceil(rateLimit.resetIn / 60000),
+          error: 'Daily limit reached',
+          message: `You've used all 20 free coloring pages for today! Come back tomorrow for more magic! ✨`,
+          resetIn: dailyLimit.resetIn,
+          hoursUntilReset,
+          used: dailyLimit.used,
+          limit: 20,
         },
         { status: 429 }
       );
@@ -148,6 +190,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('image') as File | null;
     const style = (formData.get('style') as string) || 'medium';
+    const outputStyle = (formData.get('outputStyle') as string) || 'outline';
     const removeBackgroundFlag = formData.get('removeBackground') === 'true';
 
     if (!file) {
@@ -171,7 +214,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[ConvertPhoto] Processing ${file.name} (${file.size} bytes), style: ${style}`);
+    console.log(`[ConvertPhoto] Processing ${file.name} (${file.size} bytes), style: ${style}, outputStyle: ${outputStyle}`);
 
     const arrayBuffer = await file.arrayBuffer();
     let buffer: Buffer = Buffer.from(arrayBuffer);
@@ -185,7 +228,8 @@ export async function POST(request: NextRequest) {
     // Convert to coloring page
     const processedBuffer = await convertWithStyle(
       buffer,
-      style as 'simple' | 'medium' | 'detailed'
+      style as 'simple' | 'medium' | 'detailed',
+      outputStyle as 'outline' | 'colored'
     );
 
     // Upload or encode
@@ -225,7 +269,9 @@ export async function POST(request: NextRequest) {
       thumbnailUrl,
       pageId,
       prompt: 'Photo converted with Magic Lens',
-      remaining: rateLimit.remaining,
+      remaining: dailyLimit.remaining,
+      used: dailyLimit.used,
+      limit: 20,
     });
   } catch (error) {
     console.error('Error converting photo:', error);

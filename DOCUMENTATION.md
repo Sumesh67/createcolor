@@ -117,15 +117,56 @@ NEXT_PUBLIC_APP_URL=https://createcolor.vercel.app
 8. **Party Pack** - Bulk generation (20 pages)
 9. **Review Prompt** - App Store rating after 5 prints
 
-### Deployment Commands
+### Development Workflow (IMPORTANT)
+
+**All changes should be tested locally first. Only push to remote when explicitly requested.**
+
+#### Daily Development Process
 ```bash
-# Development
+# 1. Start dev server
 npm run dev
 
-# Build
+# 2. Make your changes and test at http://localhost:3000
+
+# 3. Before ANY push, run production build locally
 npm run build
 
-# Deploy to Vercel
+# 4. If build passes, you can push (ONLY when explicitly requested)
+git add . && git commit -m "message" && git push
+```
+
+#### Pre-Push Hook (Auto-Installed)
+A git pre-push hook is installed that:
+- Automatically runs `npm run build` before every push
+- **Blocks the push if build fails**
+- Saves Vercel build credits by catching errors locally
+
+Location: `.git/hooks/pre-push`
+
+#### Why This Matters
+- Vercel charges per build (~$0.50-2.00 each)
+- Preview deployments are disabled to save costs
+- Only `main` branch deploys to production
+- Local builds are FREE and unlimited
+
+#### Commands Reference
+```bash
+# Development (hot reload)
+npm run dev
+
+# Production build (test before push)
+npm run build
+
+# Run production build locally
+npm run start
+
+# Type check only (fast)
+npx tsc --noEmit
+```
+
+### Deployment Commands
+```bash
+# Deploy to Vercel (only when explicitly requested)
 npx vercel --prod
 ```
 
@@ -373,6 +414,21 @@ npx eas submit --platform android --profile production
 | 1.0.0 | Mar 2026 | Initial release - iOS app published |
 | - | Mar 2026 | Added App Store link to website |
 | - | Mar 2026 | Added growth features (share, watermark, review prompt, SEO) |
+| - | Mar 2026 | Added Magic Lens (photo to coloring page) |
+| - | Mar 2026 | Added Storybook Creator with AI story generation |
+| - | Mar 2026 | Cost optimization: Switched to Together AI Llama models, story templates |
+| - | Mar 2026 | Added pre-push git hook, disabled Vercel preview deployments |
+
+---
+
+## Claude Code Instructions
+
+**IMPORTANT FOR AI ASSISTANT:**
+1. Always test changes locally with `npm run dev` and `npm run build`
+2. **DO NOT push to git unless explicitly requested by user**
+3. Keep all changes local until user says "push", "deploy", or "commit"
+4. Run `npm run build` before any push to catch errors early
+5. The pre-push hook will block pushes if build fails
 
 ---
 
@@ -395,4 +451,4 @@ npx eas submit --platform android --profile production
 
 ---
 
-*Last updated: March 16, 2026*
+*Last updated: March 17, 2026*

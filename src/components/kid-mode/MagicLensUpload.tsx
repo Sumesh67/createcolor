@@ -12,6 +12,7 @@ interface MagicLensUploadProps {
 }
 
 type DetailLevel = "simple" | "medium" | "detailed";
+type OutputStyle = "outline" | "colored";
 
 export function MagicLensUpload({
   onImageConverted,
@@ -21,6 +22,7 @@ export function MagicLensUpload({
   const [preview, setPreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [detailLevel, setDetailLevel] = useState<DetailLevel>("medium");
+  const [outputStyle, setOutputStyle] = useState<OutputStyle>("outline");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,6 +61,7 @@ export function MagicLensUpload({
       const formData = new FormData();
       formData.append("image", file);
       formData.append("style", detailLevel);
+      formData.append("outputStyle", outputStyle);
 
       const response = await fetch("/api/convert-photo", {
         method: "POST",
@@ -81,7 +84,7 @@ export function MagicLensUpload({
     } finally {
       setIsProcessing(false);
     }
-  }, [preview, detailLevel, onImageConverted, setIsProcessing]);
+  }, [preview, detailLevel, outputStyle, onImageConverted, setIsProcessing]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -277,6 +280,33 @@ export function MagicLensUpload({
                 <X className="w-5 h-5" />
               </button>
             )}
+          </div>
+
+          {/* Output Style Selector */}
+          <div>
+            <label className="block font-display text-sm font-semibold mb-2">
+              Output Style
+            </label>
+            <div className="flex gap-2">
+              {[
+                { id: "outline", label: "Outline Only", desc: "B&W for coloring" },
+                { id: "colored", label: "With Color", desc: "Keep original colors" },
+              ].map((style) => (
+                <button
+                  key={style.id}
+                  onClick={() => setOutputStyle(style.id as OutputStyle)}
+                  disabled={isProcessing}
+                  className={`flex-1 p-3 rounded-xl border-2 text-center transition-colors ${
+                    outputStyle === style.id
+                      ? "border-primary bg-primary/5"
+                      : "border-gray-200 hover:border-gray-300"
+                  } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <div className="font-display text-sm font-semibold">{style.label}</div>
+                  <div className="font-body text-xs text-foreground/60 mt-1">{style.desc}</div>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Detail Level Selector */}
