@@ -13,9 +13,88 @@ interface AnalyzedCharacter {
   description: string;
 }
 
-// Generate a simple description based on the character name
-// This is a zero-cost fallback since vision models are unavailable
-function generateDescription(label: string): string {
+// Analyze character image using Llama 4 Vision
+async function analyzeCharacterWithVision(imageBase64: string, label: string): Promise<string> {
+  const togetherApiKey = process.env.TOGETHER_API_KEY;
+
+  if (!togetherApiKey) {
+    console.log('[Analyze Characters] No TOGETHER_API_KEY, using fallback');
+    return generateFallbackDescription(label);
+  }
+
+  try {
+    // Ensure proper data URL format
+    let imageDataUrl = imageBase64;
+    if (!imageBase64.startsWith('data:')) {
+      imageDataUrl = `data:image/jpeg;base64,${imageBase64}`;
+    }
+
+    const response = await fetch('https://api.together.xyz/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${togetherApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: imageDataUrl },
+              },
+              {
+                type: 'text',
+                text: `Describe this character for a children's storybook illustrator. Be VERY specific so the character looks IDENTICAL in every illustration.
+
+Character name: "${label}"
+
+Describe in this EXACT format:
+- GENDER/AGE: (boy/girl/man/woman, approximate age)
+- HAIR: (color, length, style - straight/curly/wavy, any accessories)
+- FACE: (skin tone, eye color, distinctive features)
+- CLOTHING: (exact colors and types of each garment)
+- BUILD: (tall/short, thin/medium)
+
+Keep it to 2-3 sentences, be specific about colors and features. Example:
+"A young girl around 8 years old with long straight black hair in a ponytail. Light skin, brown eyes, wearing a pink t-shirt and blue jeans."
+
+Now describe:`,
+              },
+            ],
+          },
+        ],
+        max_tokens: 200,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Analyze Characters] Vision API error:', response.status, errorText);
+      return generateFallbackDescription(label);
+    }
+
+    const data = await response.json();
+    const description = data.choices?.[0]?.message?.content?.trim();
+
+    if (!description) {
+      console.error('[Analyze Characters] No description in response');
+      return generateFallbackDescription(label);
+    }
+
+    console.log(`[Analyze Characters] Vision analysis for ${label}:`, description);
+    return description;
+  } catch (error) {
+    console.error('[Analyze Characters] Vision API error:', error);
+    return generateFallbackDescription(label);
+  }
+}
+
+// Fallback description based on character name (zero-cost)
+function generateFallbackDescription(label: string): string {
   const lowerLabel = label.toLowerCase();
 
   // Common character types
@@ -103,17 +182,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[Analyze Characters] Processing ${characters.length} characters`);
+    console.log(`[Analyze Characters] Processing ${characters.length} characters with Llama Vision`);
 
-    // Generate descriptions based on labels (no API cost)
-    const analyzedCharacters: AnalyzedCharacter[] = characters.map((char) => {
-      const description = generateDescription(char.label);
-      console.log(`[Analyze Characters] ${char.label}: ${description}`);
+    // Analyze all characters in parallel using Llama 4 Vision
+    const analysisPromises = characters.map(async (char) => {
+      const description = await analyzeCharacterWithVision(char.imageBase64, char.label);
       return {
         label: char.label,
         description,
       };
     });
+
+    const analyzedCharacters: AnalyzedCharacter[] = await Promise.all(analysisPromises);
 
     console.log(`[Analyze Characters] Successfully processed ${analyzedCharacters.length} characters`);
 

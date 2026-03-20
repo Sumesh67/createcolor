@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, Image as ImageIcon, Sparkles, X } from "lucide-react";
+import { Camera, Upload, Image as ImageIcon, X, Zap, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 interface MagicLensUploadProps {
@@ -13,6 +13,7 @@ interface MagicLensUploadProps {
 
 type DetailLevel = "simple" | "medium" | "detailed";
 type OutputStyle = "outline" | "colored";
+type ProcessingMode = "magic" | "fast";
 
 export function MagicLensUpload({
   onImageConverted,
@@ -23,6 +24,7 @@ export function MagicLensUpload({
   const [dragOver, setDragOver] = useState(false);
   const [detailLevel, setDetailLevel] = useState<DetailLevel>("medium");
   const [outputStyle, setOutputStyle] = useState<OutputStyle>("outline");
+  const [processingMode, setProcessingMode] = useState<ProcessingMode>("magic");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -62,6 +64,7 @@ export function MagicLensUpload({
       formData.append("image", file);
       formData.append("style", detailLevel);
       formData.append("outputStyle", outputStyle);
+      formData.append("mode", processingMode);
 
       const response = await fetch("/api/convert-photo", {
         method: "POST",
@@ -84,7 +87,7 @@ export function MagicLensUpload({
     } finally {
       setIsProcessing(false);
     }
-  }, [preview, detailLevel, outputStyle, onImageConverted, setIsProcessing]);
+  }, [preview, detailLevel, outputStyle, processingMode, onImageConverted, setIsProcessing]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -255,18 +258,35 @@ export function MagicLensUpload({
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                    className="w-16 h-16 rounded-full border-4 border-primary border-t-transparent mb-4"
+                    className="w-16 h-16 rounded-full border-4 border-purple-500 border-t-transparent mb-4"
                   />
                   <p className="font-display text-lg font-semibold text-foreground">
-                    Processing your photo...
+                    {processingMode === "magic" ? "Magic is happening..." : "Processing..."}
                   </p>
-                  <motion.p
-                    className="font-body text-sm text-foreground/60 mt-2"
-                    animate={{ opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  >
-                    ✨ Adding magic ✨
-                  </motion.p>
+                  <motion.div className="text-center mt-2">
+                    {processingMode === "magic" ? (
+                      <>
+                        <motion.p
+                          className="font-body text-sm text-foreground/60"
+                          animate={{ opacity: [0.5, 1, 0.5] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                        >
+                          ✨ AI is understanding your photo...
+                        </motion.p>
+                        <p className="font-body text-xs text-foreground/40 mt-1">
+                          Then drawing a clean coloring page
+                        </p>
+                      </>
+                    ) : (
+                      <motion.p
+                        className="font-body text-sm text-foreground/60"
+                        animate={{ opacity: [0.5, 1, 0.5] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      >
+                        ✨ Creating outline ✨
+                      </motion.p>
+                    )}
+                  </motion.div>
                 </motion.div>
               )}
             </motion.div>
@@ -280,6 +300,45 @@ export function MagicLensUpload({
                 <X className="w-5 h-5" />
               </button>
             )}
+          </div>
+
+          {/* Processing Mode Toggle */}
+          <div>
+            <label className="block font-display text-sm font-semibold mb-2">
+              Processing Mode
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setProcessingMode("magic")}
+                disabled={isProcessing}
+                className={`flex-1 p-3 rounded-xl border-2 text-center transition-colors ${
+                  processingMode === "magic"
+                    ? "border-purple-500 bg-purple-50"
+                    : "border-gray-200 hover:border-gray-300"
+                } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Wand2 className="w-4 h-4 text-purple-500" />
+                  <span className="font-display text-sm font-semibold">Magic Re-Draw</span>
+                </div>
+                <div className="font-body text-xs text-foreground/60">AI inking, ~10s</div>
+              </button>
+              <button
+                onClick={() => setProcessingMode("fast")}
+                disabled={isProcessing}
+                className={`flex-1 p-3 rounded-xl border-2 text-center transition-colors ${
+                  processingMode === "fast"
+                    ? "border-amber-500 bg-amber-50"
+                    : "border-gray-200 hover:border-gray-300"
+                } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <span className="font-display text-sm font-semibold">Fast Sketch</span>
+                </div>
+                <div className="font-body text-xs text-foreground/60">Instant, offline</div>
+              </button>
+            </div>
           </div>
 
           {/* Output Style Selector */}
@@ -309,33 +368,35 @@ export function MagicLensUpload({
             </div>
           </div>
 
-          {/* Detail Level Selector */}
-          <div>
-            <label className="block font-display text-sm font-semibold mb-2">
-              Line Detail
-            </label>
-            <div className="flex gap-2">
-              {[
-                { id: "simple", label: "Simple", desc: "Bold lines, easy to color" },
-                { id: "medium", label: "Medium", desc: "Balanced detail" },
-                { id: "detailed", label: "Detailed", desc: "More intricate lines" },
-              ].map((level) => (
-                <button
-                  key={level.id}
-                  onClick={() => setDetailLevel(level.id as DetailLevel)}
-                  disabled={isProcessing}
-                  className={`flex-1 p-3 rounded-xl border-2 text-center transition-colors ${
-                    detailLevel === level.id
-                      ? "border-primary bg-primary/5"
-                      : "border-gray-200 hover:border-gray-300"
-                  } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  <div className="font-display text-sm font-semibold">{level.label}</div>
-                  <div className="font-body text-xs text-foreground/60 mt-1">{level.desc}</div>
-                </button>
-              ))}
+          {/* Detail Level Selector (only show for outline mode) */}
+          {outputStyle === "outline" && (
+            <div>
+              <label className="block font-display text-sm font-semibold mb-2">
+                Line Detail
+              </label>
+              <div className="flex gap-2">
+                {[
+                  { id: "simple", label: "Simple", desc: "Bold lines, easy to color" },
+                  { id: "medium", label: "Medium", desc: "Balanced detail" },
+                  { id: "detailed", label: "Detailed", desc: "More intricate lines" },
+                ].map((level) => (
+                  <button
+                    key={level.id}
+                    onClick={() => setDetailLevel(level.id as DetailLevel)}
+                    disabled={isProcessing}
+                    className={`flex-1 p-3 rounded-xl border-2 text-center transition-colors ${
+                      detailLevel === level.id
+                        ? "border-primary bg-primary/5"
+                        : "border-gray-200 hover:border-gray-300"
+                    } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <div className="font-display text-sm font-semibold">{level.label}</div>
+                    <div className="font-body text-xs text-foreground/60 mt-1">{level.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Convert Button */}
           <Button
@@ -346,8 +407,18 @@ export function MagicLensUpload({
             disabled={isProcessing}
             isLoading={isProcessing}
           >
-            <Sparkles className="w-5 h-5 mr-2" />
-            {isProcessing ? "Creating Magic..." : "Convert to Coloring Page"}
+            {processingMode === "magic" ? (
+              <Wand2 className="w-5 h-5 mr-2" />
+            ) : (
+              <Zap className="w-5 h-5 mr-2" />
+            )}
+            {isProcessing
+              ? processingMode === "magic"
+                ? "Magic is happening..."
+                : "Processing..."
+              : processingMode === "magic"
+              ? "Magic Re-Draw"
+              : "Fast Sketch"}
           </Button>
         </div>
       )}

@@ -52,7 +52,7 @@ const THEMES: Array<{ id: Theme; emoji: string; label: string; color: string }> 
 ];
 
 const LOADING_STEPS = [
-  { step: 1, text: "Meeting your characters...", emoji: "👋" },
+  { step: 1, text: "AI is studying your photos...", emoji: "🔍" },
   { step: 2, text: "Writing your adventure...", emoji: "✍️" },
   { step: 3, text: "Drawing the pages...", emoji: "🎨" },
   { step: 4, text: "Binding your book...", emoji: "📚" },
@@ -304,7 +304,7 @@ export default function StorybookPage() {
 
             {/* Character Upload Grid */}
             <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-2">
                 <label className="font-display text-sm font-semibold">
                   Your Characters ({uploadedCount}/5)
                 </label>
@@ -317,6 +317,9 @@ export default function StorybookPage() {
                   </button>
                 )}
               </div>
+              <p className="font-body text-xs text-foreground/60 mb-4">
+                🔍 AI will analyze your photos to describe each character accurately in the story
+              </p>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {characters.map((char, index) => (
@@ -676,14 +679,19 @@ function StorybookResult({
       {/* Characters Used */}
       <div className="bg-white rounded-xl p-4">
         <p className="font-display text-sm font-semibold mb-3">Starring:</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="space-y-3">
           {storybook.characters.map((char, i) => (
-            <span
+            <div
               key={i}
-              className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-body"
+              className="p-3 bg-purple-50 rounded-lg border border-purple-100"
             >
-              {char.label}
-            </span>
+              <p className="font-display text-sm font-semibold text-purple-700 mb-1">
+                {char.label}
+              </p>
+              <p className="font-body text-xs text-foreground/70">
+                {char.description}
+              </p>
+            </div>
           ))}
         </div>
       </div>

@@ -15,85 +15,16 @@ interface StoryPage {
   imageUrl?: string;
 }
 
-// Use FLUX.2-flex for multi-reference image generation
+// Use FLUX.1-schnell for fast image generation (4 steps = ~3-4 seconds per image)
 const IMAGE_CONFIG = {
-  model: 'black-forest-labs/FLUX.2-flex',
+  model: 'black-forest-labs/FLUX.1-schnell',
   width: 768,
   height: 576,
-  steps: 20, // FLUX.2-flex allows customizable steps
+  steps: 4, // FLUX.1-schnell is optimized for 4 steps
 };
 
-async function generateImageWithReferences(
-  prompt: string,
-  referenceImages: string[]
-): Promise<string | null> {
-  const apiKey = process.env.TOGETHER_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    // Filter valid reference images (must be data URLs or URLs)
-    const validRefs = referenceImages
-      .filter((img) => img && (img.startsWith('data:') || img.startsWith('http')))
-      .slice(0, 5); // Max 5 reference images for performance
-
-    console.log(`[Generate Pages] Using ${validRefs.length} reference images`);
-
-    const requestBody: Record<string, unknown> = {
-      model: IMAGE_CONFIG.model,
-      prompt,
-      width: IMAGE_CONFIG.width,
-      height: IMAGE_CONFIG.height,
-      steps: IMAGE_CONFIG.steps,
-      n: 1,
-      response_format: 'b64_json',
-    };
-
-    // Add reference images if available
-    if (validRefs.length > 0) {
-      requestBody.reference_images = validRefs;
-    }
-
-    const response = await fetch('https://api.together.xyz/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Generate Pages] API error: ${response.status} - ${errorText.substring(0, 200)}`);
-
-      // Fallback to FLUX.1-schnell without references if FLUX.2-flex fails
-      if (validRefs.length > 0) {
-        console.log('[Generate Pages] Falling back to FLUX.1-schnell without references');
-        return generateImageFallback(prompt);
-      }
-      return null;
-    }
-
-    const data = await response.json();
-    const imageData = data.data?.[0];
-
-    if (imageData?.b64_json) {
-      return `data:image/png;base64,${imageData.b64_json}`;
-    }
-
-    if (imageData?.url) {
-      return imageData.url;
-    }
-
-    return null;
-  } catch (error) {
-    console.error('[Generate Pages] Image generation error:', error);
-    return null;
-  }
-}
-
-// Fallback to FLUX.1-schnell without references
-async function generateImageFallback(prompt: string): Promise<string | null> {
+// Fast image generation with FLUX.1-schnell
+async function generateImage(prompt: string): Promise<string | null> {
   const apiKey = process.env.TOGETHER_API_KEY;
   if (!apiKey) return null;
 
@@ -105,23 +36,32 @@ async function generateImageFallback(prompt: string): Promise<string | null> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'black-forest-labs/FLUX.1-schnell',
+        model: IMAGE_CONFIG.model,
         prompt,
-        width: 768,
-        height: 576,
-        steps: 4,
+        width: IMAGE_CONFIG.width,
+        height: IMAGE_CONFIG.height,
+        steps: IMAGE_CONFIG.steps,
         n: 1,
         response_format: 'b64_json',
       }),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Generate Pages] API error: ${response.status} - ${errorText.substring(0, 100)}`);
+      return null;
+    }
 
     const data = await response.json();
-    return data.data?.[0]?.b64_json
-      ? `data:image/png;base64,${data.data[0].b64_json}`
-      : null;
-  } catch {
+    const imageData = data.data?.[0];
+
+    if (imageData?.b64_json) {
+      return `data:image/png;base64,${imageData.b64_json}`;
+    }
+
+    return imageData?.url || null;
+  } catch (error) {
+    console.error('[Generate Pages] Image generation error:', error);
     return null;
   }
 }
@@ -153,10 +93,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { characters, pages, referenceImages, outputStyle = 'colored' } = body as {
+    const { characters, pages, outputStyle = 'colored' } = body as {
       characters: Character[];
       pages: StoryPage[];
-      referenceImages?: string[];
       outputStyle?: 'outline' | 'colored';
     };
 
@@ -167,39 +106,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const refs = referenceImages || [];
     const isOutline = outputStyle === 'outline';
-    console.log(`[Generate Pages] Generating ${pages.length} ${isOutline ? 'outline' : 'colored'} illustrations with FLUX.2-flex (${refs.length} reference images)`);
+    console.log(`[Generate Pages] Generating ${pages.length} ${isOutline ? 'outline' : 'colored'} illustrations with FLUX.1-schnell (fast mode)`);
 
-    // Build character reference string with image indices
-    const characterRef = characters
-      .map((c, i) => `${c.label} (image ${i + 1}: ${c.description})`)
-      .join(', ');
+    // Build DETAILED character descriptions for consistency
+    const characterDetails = characters
+      .map((c) => `"${c.label}": ${c.description}`)
+      .join('\n');
+
+    // Create a consistent character reference block
+    const characterBlock = `IMPORTANT - Use these EXACT character appearances in EVERY image:
+${characterDetails}
+
+Keep these characters looking IDENTICAL in every scene - same face, hair, clothing, features.`;
 
     // Generate illustrations for each page (in parallel for speed)
     const illustratedPages: StoryPage[] = await Promise.all(
       pages.map(async (page) => {
         try {
-          console.log(`[Generate Pages] Generating illustration for page ${page.pageNumber}`);
+          console.log(`[Generate Pages] Page ${page.pageNumber}...`);
 
-          // Create prompt that references the uploaded images
-          const stylePrompt = isOutline
-            ? `Children's book coloring page, black and white line art, clean outlines, simple shapes for coloring, no shading, white background, suitable for kids to color in`
-            : `Children's book illustration, colorful watercolor style, friendly cute characters, G-rated, warm inviting scene`;
+          // Enhanced prompt with strong character consistency instructions
+          const illustrationPrompt = isOutline
+            ? `Children's coloring book page, black and white line art only:
 
-          const styleFooter = isOutline
-            ? `Style: Black and white line drawing, thick clean outlines, simple shapes, no colors, no shading, white background, coloring book page style, no text in image`
-            : `Style: Soft pastel colors, simple shapes, cheerful children's book atmosphere, no text in image`;
+Scene: ${page.illustrationDescription}
 
-          const illustrationPrompt = `${stylePrompt}:
+${characterBlock}
 
-${page.illustrationDescription}
+Style: Simple clean outlines, no shading, no filled areas, white background, coloring book for kids.`
+            : `Children's book illustration:
 
-${refs.length > 0 ? `Use the characters from the reference images: ${characterRef}. Make them look like the people/characters in image 1${refs.length > 1 ? ', image 2' : ''}${refs.length > 2 ? ', image 3' : ''} etc.` : `Characters: ${characterRef}`}
+Scene: ${page.illustrationDescription}
 
-${styleFooter}`;
+${characterBlock}
 
-          const imageUrl = await generateImageWithReferences(illustrationPrompt, refs);
+Style: Colorful watercolor, cute friendly characters, soft pastel colors, G-rated.`;
+
+          const imageUrl = await generateImage(illustrationPrompt);
 
           if (!imageUrl) {
             console.error(`[Generate Pages] No image returned for page ${page.pageNumber}`);
