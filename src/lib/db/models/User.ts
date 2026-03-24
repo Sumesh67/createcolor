@@ -40,7 +40,7 @@ const UserSchema = new Schema<IUser>(
     },
     magicEnergy: {
       type: Number,
-      default: 100,
+      default: 5,
     },
     lastEnergyReset: {
       type: Date,

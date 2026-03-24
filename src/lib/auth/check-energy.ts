@@ -55,7 +55,7 @@ export async function checkAndDeductEnergy(userId: string): Promise<EnergyStatus
   // Check if we need to reset energy (new day)
   if (isNewDay(user.lastEnergyReset)) {
     console.log(`[Energy] Resetting energy for user ${userId} (new day)`);
-    user.magicEnergy = 100;
+    user.magicEnergy = 5;
     user.lastEnergyReset = new Date();
     await user.save();
   }
@@ -96,7 +96,7 @@ export async function getEnergyStatus(userId: string): Promise<EnergyStatus> {
 
   // Check if we need to reset energy (new day)
   if (isNewDay(user.lastEnergyReset)) {
-    user.magicEnergy = 100;
+    user.magicEnergy = 5;
     user.lastEnergyReset = new Date();
     await user.save();
   }
