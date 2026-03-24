@@ -7,6 +7,8 @@ export interface IUser extends Document {
   image?: string;
   password?: string;
   role: 'CHILD' | 'PARENT';
+  magicEnergy: number;
+  lastEnergyReset: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +37,14 @@ const UserSchema = new Schema<IUser>(
       type: String,
       enum: ['CHILD', 'PARENT'],
       default: 'PARENT',
+    },
+    magicEnergy: {
+      type: Number,
+      default: 100,
+    },
+    lastEnergyReset: {
+      type: Date,
+      default: Date.now,
     },
   },
   {

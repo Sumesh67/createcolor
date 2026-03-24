@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, Image as ImageIcon, X, Zap, Wand2 } from "lucide-react";
+import { Camera, Upload, Image as ImageIcon, X, Zap, Wand2, Sparkles, Battery } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 
 interface MagicLensUploadProps {
   onImageConverted: (imageUrl: string, prompt: string) => void;
@@ -20,13 +22,29 @@ export function MagicLensUpload({
   isProcessing,
   setIsProcessing,
 }: MagicLensUploadProps) {
+  const { data: session, status } = useSession();
   const [preview, setPreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [detailLevel, setDetailLevel] = useState<DetailLevel>("medium");
   const [outputStyle, setOutputStyle] = useState<OutputStyle>("outline");
   const [processingMode, setProcessingMode] = useState<ProcessingMode>("magic");
   const [error, setError] = useState<string | null>(null);
+  const [energy, setEnergy] = useState<{ remaining: number; resetAt?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch energy status on mount (only for magic mode)
+  useEffect(() => {
+    if (session?.user) {
+      fetch("/api/energy/status")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.remaining !== undefined) {
+            setEnergy({ remaining: data.remaining, resetAt: data.resetAt });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [session]);
 
   const handleFileSelect = useCallback(async (file: File) => {
     setError(null);
@@ -55,29 +73,64 @@ export function MagicLensUpload({
   const handleConvert = useCallback(async () => {
     if (!preview || !fileInputRef.current?.files?.[0]) return;
 
+    // Check authentication for magic mode
+    if (processingMode === "magic" && !session?.user) {
+      setError("Please sign in to use Magic Re-Draw");
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
 
     try {
-      const file = fileInputRef.current.files[0];
-      const formData = new FormData();
-      formData.append("image", file);
-      formData.append("style", detailLevel);
-      formData.append("outputStyle", outputStyle);
-      formData.append("mode", processingMode);
+      let data;
 
-      const response = await fetch("/api/convert-photo", {
-        method: "POST",
-        body: formData,
-      });
+      if (processingMode === "magic") {
+        // Use Gemini + FLUX.1-dev pipeline (requires auth + energy)
+        const response = await fetch("/api/magic-lens", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageBase64: preview.split(",")[1],
+          }),
+        });
 
-      const data = await response.json();
+        data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || "Conversion failed");
+        if (!response.ok) {
+          if (data.error === "NO_ENERGY") {
+            setEnergy({ remaining: 0 });
+            throw new Error(data.message || "Your Magic Wand needs to rest! Come back tomorrow.");
+          }
+          throw new Error(data.message || "Conversion failed");
+        }
+
+        // Update energy after successful use
+        if (energy) {
+          setEnergy({ ...energy, remaining: energy.remaining - 1 });
+        }
+      } else {
+        // Use fast mode (no auth required, uses edge processing)
+        const file = fileInputRef.current.files[0];
+        const formData = new FormData();
+        formData.append("image", file);
+        formData.append("style", detailLevel);
+        formData.append("outputStyle", outputStyle);
+        formData.append("mode", processingMode);
+
+        const response = await fetch("/api/convert-photo", {
+          method: "POST",
+          body: formData,
+        });
+
+        data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Conversion failed");
+        }
       }
 
-      onImageConverted(data.imageUrl, "Photo converted with Magic Lens");
+      onImageConverted(data.imageUrl, data.description || "Photo converted with Magic Lens");
       setPreview(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -87,7 +140,7 @@ export function MagicLensUpload({
     } finally {
       setIsProcessing(false);
     }
-  }, [preview, detailLevel, outputStyle, processingMode, onImageConverted, setIsProcessing]);
+  }, [preview, detailLevel, outputStyle, processingMode, onImageConverted, setIsProcessing, session, energy]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -137,6 +190,60 @@ export function MagicLensUpload({
           Turn any photo into a coloring page!
         </p>
       </div>
+
+      {/* Energy Status (for magic mode) */}
+      {processingMode === "magic" && session?.user && energy !== null && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-3 rounded-xl flex items-center justify-between ${
+            energy.remaining > 0 ? "bg-purple-50 border border-purple-200" : "bg-orange-50 border border-orange-200"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Battery className={`w-5 h-5 ${energy.remaining > 0 ? "text-purple-500" : "text-orange-500"}`} />
+            <span className="font-display text-sm font-semibold">
+              {energy.remaining > 0 ? (
+                <>Magic Wand: {energy.remaining} use{energy.remaining !== 1 ? "s" : ""} left today</>
+              ) : (
+                <>Magic Wand resting until tomorrow</>
+              )}
+            </span>
+          </div>
+          {energy.remaining > 0 && (
+            <div className="flex gap-1">
+              {[...Array(2)].map((_, i) => (
+                <Sparkles
+                  key={i}
+                  className={`w-4 h-4 ${i < energy.remaining ? "text-purple-500" : "text-gray-300"}`}
+                />
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* Sign in prompt for magic mode */}
+      {processingMode === "magic" && status !== "loading" && !session?.user && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 text-center"
+        >
+          <p className="font-display text-sm font-semibold text-purple-700 mb-2">
+            Sign in to use Magic Re-Draw
+          </p>
+          <p className="font-body text-xs text-foreground/60 mb-3">
+            AI-powered photo-to-coloring conversion with Gemini + FLUX
+          </p>
+          <Link
+            href="/auth/signin"
+            className="inline-block px-4 py-2 bg-purple-500 text-white rounded-lg font-display text-sm hover:bg-purple-600 transition-colors"
+          >
+            Sign In
+          </Link>
+        </motion.div>
+      )}
 
       {/* Error Display */}
       <AnimatePresence>
@@ -321,7 +428,14 @@ export function MagicLensUpload({
                   <Wand2 className="w-4 h-4 text-purple-500" />
                   <span className="font-display text-sm font-semibold">Magic Re-Draw</span>
                 </div>
-                <div className="font-body text-xs text-foreground/60">AI inking, ~10s</div>
+                <div className="font-body text-xs text-foreground/60">
+                  Gemini + FLUX AI, ~15s
+                </div>
+                {session?.user && energy !== null && (
+                  <div className="font-body text-xs text-purple-500 mt-1">
+                    {energy.remaining > 0 ? `${energy.remaining} use${energy.remaining !== 1 ? "s" : ""} left` : "Resets tomorrow"}
+                  </div>
+                )}
               </button>
               <button
                 onClick={() => setProcessingMode("fast")}
@@ -337,6 +451,7 @@ export function MagicLensUpload({
                   <span className="font-display text-sm font-semibold">Fast Sketch</span>
                 </div>
                 <div className="font-body text-xs text-foreground/60">Instant, offline</div>
+                <div className="font-body text-xs text-green-500 mt-1">Unlimited</div>
               </button>
             </div>
           </div>
@@ -404,7 +519,7 @@ export function MagicLensUpload({
             size="xl"
             className="w-full"
             onClick={handleConvert}
-            disabled={isProcessing}
+            disabled={isProcessing || (processingMode === "magic" && (!session?.user || (energy !== null && energy.remaining <= 0)))}
             isLoading={isProcessing}
           >
             {processingMode === "magic" ? (
@@ -414,12 +529,27 @@ export function MagicLensUpload({
             )}
             {isProcessing
               ? processingMode === "magic"
-                ? "Magic is happening..."
+                ? "Creating Magic..."
                 : "Processing..."
+              : processingMode === "magic" && !session?.user
+              ? "Sign in to use Magic"
+              : processingMode === "magic" && energy !== null && energy.remaining <= 0
+              ? "No Magic Left Today"
               : processingMode === "magic"
               ? "Magic Re-Draw"
               : "Fast Sketch"}
           </Button>
+
+          {/* Energy Warning */}
+          {processingMode === "magic" && energy !== null && energy.remaining <= 0 && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center text-sm text-orange-600 font-body mt-2"
+            >
+              Your Magic Wand needs rest! Try again tomorrow or use Fast Sketch.
+            </motion.p>
+          )}
         </div>
       )}
 

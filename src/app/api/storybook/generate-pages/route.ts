@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
+import sharp from 'sharp';
 
 export const maxDuration = 120;
 
@@ -15,20 +16,76 @@ interface StoryPage {
   imageUrl?: string;
 }
 
-// Use FLUX.1-schnell for fast image generation (4 steps = ~3-4 seconds per image)
+// Use FLUX.1-schnell for fast image generation
 const IMAGE_CONFIG = {
   model: 'black-forest-labs/FLUX.1-schnell',
-  width: 768,
-  height: 576,
-  steps: 4, // FLUX.1-schnell is optimized for 4 steps
+  width: 1024,
+  height: 768,
+  steps: 4, // Fast serverless model
 };
 
-// Fast image generation with FLUX.1-schnell
-async function generateImage(prompt: string): Promise<string | null> {
+/**
+ * Post-process image for pure black & white coloring page
+ */
+async function postProcessForColoring(base64Data: string): Promise<string> {
+  const buffer = Buffer.from(base64Data, 'base64');
+
+  // Step 1: Convert to grayscale and boost contrast
+  let processed = await sharp(buffer)
+    .grayscale()
+    .normalize()
+    .linear(1.5, -30) // Increase contrast
+    .toBuffer();
+
+  // Step 2: Apply aggressive threshold for pure B&W
+  processed = await sharp(processed)
+    .threshold(150) // Lower threshold = more black lines
+    .toBuffer();
+
+  // Step 3: Clean up with median filter
+  processed = await sharp(processed)
+    .median(1)
+    .toBuffer();
+
+  // Step 4: Thicken lines slightly
+  const dilationKernel = [1, 1, 1, 1, 1, 1, 1, 1, 1];
+  processed = await sharp(processed)
+    .convolve({
+      width: 3,
+      height: 3,
+      kernel: dilationKernel,
+      scale: 9,
+      offset: 0,
+    })
+    .threshold(180) // Re-threshold after dilation
+    .toBuffer();
+
+  // Step 5: Final threshold to ensure absolutely pure B&W
+  processed = await sharp(processed)
+    .threshold(128)
+    .toBuffer();
+
+  // Step 6: Final output - ensure pure white background and 1-bit B&W
+  const final = await sharp(processed)
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .grayscale() // Ensure no color channels remain
+    .threshold(128) // Final pure B&W conversion
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+
+  return final.toString('base64');
+}
+
+// High quality image generation with FLUX.1-schnell
+async function generateImage(prompt: string, isOutline: boolean): Promise<string | null> {
   const apiKey = process.env.TOGETHER_API_KEY;
   if (!apiKey) return null;
 
   try {
+    const negativePrompt = isOutline
+      ? 'color, colored, colorful, red, blue, green, yellow, orange, purple, pink, shading, shadows, gradients, gray, grey, realistic, photorealistic, messy lines, text, watermark, nudity, gore, scary, 3d render, dark background'
+      : 'text, watermark, nudity, gore, scary, dark, ugly';
+
     const response = await fetch('https://api.together.xyz/v1/images/generations', {
       method: 'POST',
       headers: {
@@ -38,6 +95,7 @@ async function generateImage(prompt: string): Promise<string | null> {
       body: JSON.stringify({
         model: IMAGE_CONFIG.model,
         prompt,
+        negative_prompt: negativePrompt,
         width: IMAGE_CONFIG.width,
         height: IMAGE_CONFIG.height,
         steps: IMAGE_CONFIG.steps,
@@ -56,6 +114,11 @@ async function generateImage(prompt: string): Promise<string | null> {
     const imageData = data.data?.[0];
 
     if (imageData?.b64_json) {
+      // Apply post-processing for outline style
+      if (isOutline) {
+        const processedBase64 = await postProcessForColoring(imageData.b64_json);
+        return `data:image/png;base64,${processedBase64}`;
+      }
       return `data:image/png;base64,${imageData.b64_json}`;
     }
 
@@ -128,13 +191,13 @@ Keep these characters looking IDENTICAL in every scene - same face, hair, clothi
 
           // Enhanced prompt with strong character consistency instructions
           const illustrationPrompt = isOutline
-            ? `Children's coloring book page, black and white line art only:
+            ? `BLACK AND WHITE children's coloring book page, pure monochrome line art:
 
 Scene: ${page.illustrationDescription}
 
 ${characterBlock}
 
-Style: Simple clean outlines, no shading, no filled areas, white background, coloring book for kids.`
+Style: BLACK AND WHITE ONLY, thick bold black outlines on pure white background, absolutely no color, no shading, no gray tones, no gradients, simple clean line art, large empty areas to color in, professional coloring book page style, monochrome, ink drawing.`
             : `Children's book illustration:
 
 Scene: ${page.illustrationDescription}
@@ -143,7 +206,7 @@ ${characterBlock}
 
 Style: Colorful watercolor, cute friendly characters, soft pastel colors, G-rated.`;
 
-          const imageUrl = await generateImage(illustrationPrompt);
+          const imageUrl = await generateImage(illustrationPrompt, isOutline);
 
           if (!imageUrl) {
             console.error(`[Generate Pages] No image returned for page ${page.pageNumber}`);

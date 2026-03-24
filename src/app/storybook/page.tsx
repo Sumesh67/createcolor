@@ -1,21 +1,20 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
   Upload,
   X,
-  Rocket,
-  Waves,
-  Castle,
-  Trees,
   Sparkles,
   BookOpen,
   Download,
   RefreshCw,
+  Battery,
+  LogIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
@@ -52,10 +51,10 @@ const THEMES: Array<{ id: Theme; emoji: string; label: string; color: string }> 
 ];
 
 const LOADING_STEPS = [
-  { step: 1, text: "AI is studying your photos...", emoji: "🔍" },
+  { step: 1, text: "Gemini is studying your photos...", emoji: "🔍" },
   { step: 2, text: "Writing your adventure...", emoji: "✍️" },
-  { step: 3, text: "Drawing the pages...", emoji: "🎨" },
-  { step: 4, text: "Binding your book...", emoji: "📚" },
+  { step: 3, text: "FLUX is drawing illustrations...", emoji: "🎨" },
+  { step: 4, text: "Finishing your book...", emoji: "📚" },
 ];
 
 const createEmptySlot = (): CharacterUpload => ({
@@ -66,6 +65,7 @@ const createEmptySlot = (): CharacterUpload => ({
 });
 
 export default function StorybookPage() {
+  const { data: session, status: authStatus } = useSession();
   const [characters, setCharacters] = useState<CharacterUpload[]>([
     createEmptySlot(),
     createEmptySlot(),
@@ -78,7 +78,22 @@ export default function StorybookPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [generatedStorybook, setGeneratedStorybook] = useState<GeneratedStorybook | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [energy, setEnergy] = useState<{ remaining: number; resetAt?: string } | null>(null);
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+
+  // Fetch energy status on mount
+  useEffect(() => {
+    if (session?.user) {
+      fetch("/api/energy/status")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.remaining !== undefined) {
+            setEnergy({ remaining: data.remaining, resetAt: data.resetAt });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [session]);
 
   const uploadedCount = characters.filter((c) => c.file !== null).length;
   const canGenerate = uploadedCount >= 1 && characters.every((c) => !c.file || c.label.trim());
@@ -124,6 +139,18 @@ export default function StorybookPage() {
   }, [characters.length]);
 
   const handleGenerate = async () => {
+    // Check authentication
+    if (!session?.user) {
+      setError("Please sign in to create a storybook");
+      return;
+    }
+
+    // Check energy
+    if (energy !== null && energy.remaining <= 0) {
+      setError("Your Magic Wand needs rest! Come back tomorrow for more coloring fun.");
+      return;
+    }
+
     setError(null);
     setIsGenerating(true);
     setCurrentStep(1);
@@ -131,93 +158,86 @@ export default function StorybookPage() {
     try {
       const uploadedCharacters = characters.filter((c) => c.file && c.label.trim());
 
-      // Step 1: Analyze characters
+      // Use the unified create endpoint which handles all steps
+      // Step 1-3: The API analyzes characters, writes story, and generates illustrations
       setCurrentStep(1);
-      const analyzeResponse = await fetch("/api/storybook/analyze-characters", {
+
+      // Simulate step progression for better UX
+      const stepTimers = [
+        setTimeout(() => setCurrentStep(2), 8000),   // Story writing
+        setTimeout(() => setCurrentStep(3), 20000),  // Illustration
+        setTimeout(() => setCurrentStep(4), 60000),  // Final touches
+      ];
+
+      const response = await fetch("/api/storybook/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           characters: uploadedCharacters.map((c) => ({
-            imageBase64: c.preview?.split(",")[1],
             label: c.label.trim(),
+            imageBase64: c.preview?.split(",")[1],
           })),
-        }),
-      });
-
-      if (!analyzeResponse.ok) {
-        const data = await analyzeResponse.json();
-        throw new Error(data.message || "Failed to analyze characters");
-      }
-
-      const { characters: analyzedCharacters } = await analyzeResponse.json();
-
-      // Step 2: Generate story
-      setCurrentStep(2);
-      const storyResponse = await fetch("/api/storybook/generate-story", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          characters: analyzedCharacters,
           theme: selectedTheme,
-          childName: childName.trim() || undefined,
+          outputStyle,
         }),
       });
 
-      if (!storyResponse.ok) {
-        const data = await storyResponse.json();
-        throw new Error(data.message || "Failed to generate story");
+      // Clear timers
+      stepTimers.forEach(clearTimeout);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.error === "NO_ENERGY") {
+          setEnergy({ remaining: 0 });
+          throw new Error(data.message || "Your Magic Wand needs rest!");
+        }
+        throw new Error(data.message || "Failed to create storybook");
       }
 
-      const { story } = await storyResponse.json();
-
-      // Step 3: Generate illustrations with reference images
-      setCurrentStep(3);
-      const illustrateResponse = await fetch("/api/storybook/generate-pages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          characters: analyzedCharacters,
-          pages: story.pages,
-          referenceImages: uploadedCharacters.map((c) => c.preview), // Pass base64 images
-          outputStyle, // "outline" for coloring pages, "colored" for full color
-        }),
-      });
-
-      if (!illustrateResponse.ok) {
-        const data = await illustrateResponse.json();
-        throw new Error(data.message || "Failed to generate illustrations");
+      // Update energy after successful generation
+      if (energy) {
+        setEnergy({ ...energy, remaining: energy.remaining - 1 });
       }
 
-      const { pages: illustratedPages } = await illustrateResponse.json();
-
-      // Step 4: Generate PDF
       setCurrentStep(4);
-      const pdfResponse = await fetch("/api/storybook/generate-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: story.title || `${childName || "Our"}'s Big Adventure!`,
-          characters: analyzedCharacters,
-          pages: illustratedPages,
-          theme: selectedTheme,
-        }),
-      });
 
-      if (!pdfResponse.ok) {
-        const data = await pdfResponse.json();
-        throw new Error(data.message || "Failed to generate PDF");
+      // Optional: Generate PDF (if endpoint exists)
+      let pdfUrl: string | undefined;
+      try {
+        const pdfResponse = await fetch("/api/storybook/generate-pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: data.title,
+            characters: data.characters,
+            pages: data.pages,
+            theme: selectedTheme,
+          }),
+        });
+
+        if (pdfResponse.ok) {
+          const pdfData = await pdfResponse.json();
+          pdfUrl = pdfData.pdfUrl;
+        }
+      } catch {
+        // PDF generation is optional
+        console.log("[Storybook] PDF generation skipped");
       }
-
-      const { pdfUrl } = await pdfResponse.json();
 
       setGeneratedStorybook({
-        title: story.title || `${childName || "Our"}'s Big Adventure!`,
-        characters: analyzedCharacters,
-        pages: illustratedPages,
+        title: data.title,
+        characters: data.characters,
+        pages: data.pages,
         pdfUrl,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const errorMessage = err instanceof Error ? err.message : "Something went wrong";
+      // Check for energy error
+      if (errorMessage.includes("Magic Wand") || errorMessage.includes("NO_ENERGY")) {
+        setEnergy({ remaining: 0 });
+      }
+      setError(errorMessage);
     } finally {
       setIsGenerating(false);
       setCurrentStep(0);
@@ -273,6 +293,64 @@ export default function StorybookPage() {
                 Upload photos of your family, pets, or toys and watch them become the stars of an adventure!
               </p>
             </motion.div>
+
+            {/* Auth Status */}
+            {authStatus !== "loading" && !session?.user && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 text-center"
+              >
+                <p className="font-display text-sm font-semibold text-purple-700 mb-2">
+                  Sign in to create your storybook
+                </p>
+                <p className="font-body text-xs text-foreground/60 mb-3">
+                  AI-powered story generation with Gemini + FLUX illustrations
+                </p>
+                <Link
+                  href="/auth/signin"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg font-display text-sm hover:bg-purple-600 transition-colors"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Sign In
+                </Link>
+              </motion.div>
+            )}
+
+            {/* Energy Status */}
+            {session?.user && energy !== null && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`mb-6 p-4 rounded-xl flex items-center justify-between ${
+                  energy.remaining > 0 ? "bg-purple-50 border border-purple-200" : "bg-orange-50 border border-orange-200"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Battery className={`w-6 h-6 ${energy.remaining > 0 ? "text-purple-500" : "text-orange-500"}`} />
+                  <div>
+                    <p className="font-display text-sm font-semibold">
+                      {energy.remaining > 0 ? (
+                        <>Magic Wand: {energy.remaining} use{energy.remaining !== 1 ? "s" : ""} left today</>
+                      ) : (
+                        <>Magic Wand resting until tomorrow</>
+                      )}
+                    </p>
+                    <p className="font-body text-xs text-foreground/60">
+                      Each storybook uses 1 magic energy
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  {[...Array(2)].map((_, i) => (
+                    <Sparkles
+                      key={i}
+                      className={`w-5 h-5 ${i < energy.remaining ? "text-purple-500" : "text-gray-300"}`}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            )}
 
             {/* Error */}
             <AnimatePresence>
@@ -399,19 +477,35 @@ export default function StorybookPage() {
                 size="xl"
                 className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
                 onClick={handleGenerate}
-                disabled={!canGenerate || isGenerating}
+                disabled={!canGenerate || isGenerating || !session?.user || (energy !== null && energy.remaining <= 0)}
               >
                 <BookOpen className="w-5 h-5 mr-2" />
-                Create Our Story! 📖
+                {!session?.user
+                  ? "Sign in to Create"
+                  : energy !== null && energy.remaining <= 0
+                  ? "No Magic Left Today"
+                  : "Create Our Story! 📖"}
               </Button>
 
-              {!canGenerate && uploadedCount > 0 && (
+              {!session?.user && (
+                <p className="text-center text-sm text-purple-600 mt-2 font-body">
+                  Please sign in to create your storybook
+                </p>
+              )}
+
+              {session?.user && energy !== null && energy.remaining <= 0 && (
+                <p className="text-center text-sm text-orange-600 mt-2 font-body">
+                  Your Magic Wand needs rest! Come back tomorrow for more fun.
+                </p>
+              )}
+
+              {session?.user && energy !== null && energy.remaining > 0 && !canGenerate && uploadedCount > 0 && (
                 <p className="text-center text-sm text-orange-600 mt-2 font-body">
                   Please name all your characters before creating the story
                 </p>
               )}
 
-              {uploadedCount === 0 && (
+              {session?.user && energy !== null && energy.remaining > 0 && uploadedCount === 0 && (
                 <p className="text-center text-sm text-gray-500 mt-2 font-body">
                   Upload at least 1 character to get started
                 </p>

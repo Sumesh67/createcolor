@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
+import { analyzePhoto } from '@/lib/ai/gemini-client';
 
 export const maxDuration = 60;
 
@@ -13,82 +14,19 @@ interface AnalyzedCharacter {
   description: string;
 }
 
-// Analyze character image using Llama 4 Vision
-async function analyzeCharacterWithVision(imageBase64: string, label: string): Promise<string> {
-  const togetherApiKey = process.env.TOGETHER_API_KEY;
-
-  if (!togetherApiKey) {
-    console.log('[Analyze Characters] No TOGETHER_API_KEY, using fallback');
+// Analyze character image using Gemini 1.5 Flash
+async function analyzeCharacterWithGemini(imageBase64: string, label: string): Promise<string> {
+  if (!process.env.GEMINI_API_KEY) {
+    console.log('[Analyze Characters] No GEMINI_API_KEY, using fallback');
     return generateFallbackDescription(label);
   }
 
   try {
-    // Ensure proper data URL format
-    let imageDataUrl = imageBase64;
-    if (!imageBase64.startsWith('data:')) {
-      imageDataUrl = `data:image/jpeg;base64,${imageBase64}`;
-    }
-
-    const response = await fetch('https://api.together.xyz/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${togetherApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: { url: imageDataUrl },
-              },
-              {
-                type: 'text',
-                text: `Describe this character for a children's storybook illustrator. Be VERY specific so the character looks IDENTICAL in every illustration.
-
-Character name: "${label}"
-
-Describe in this EXACT format:
-- GENDER/AGE: (boy/girl/man/woman, approximate age)
-- HAIR: (color, length, style - straight/curly/wavy, any accessories)
-- FACE: (skin tone, eye color, distinctive features)
-- CLOTHING: (exact colors and types of each garment)
-- BUILD: (tall/short, thin/medium)
-
-Keep it to 2-3 sentences, be specific about colors and features. Example:
-"A young girl around 8 years old with long straight black hair in a ponytail. Light skin, brown eyes, wearing a pink t-shirt and blue jeans."
-
-Now describe:`,
-              },
-            ],
-          },
-        ],
-        max_tokens: 200,
-        temperature: 0.3,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Analyze Characters] Vision API error:', response.status, errorText);
-      return generateFallbackDescription(label);
-    }
-
-    const data = await response.json();
-    const description = data.choices?.[0]?.message?.content?.trim();
-
-    if (!description) {
-      console.error('[Analyze Characters] No description in response');
-      return generateFallbackDescription(label);
-    }
-
-    console.log(`[Analyze Characters] Vision analysis for ${label}:`, description);
+    const description = await analyzePhoto(imageBase64);
+    console.log(`[Analyze Characters] Gemini analysis for ${label}:`, description);
     return description;
   } catch (error) {
-    console.error('[Analyze Characters] Vision API error:', error);
+    console.error('[Analyze Characters] Gemini API error:', error);
     return generateFallbackDescription(label);
   }
 }
@@ -182,11 +120,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[Analyze Characters] Processing ${characters.length} characters with Llama Vision`);
+    console.log(`[Analyze Characters] Processing ${characters.length} characters with Gemini`);
 
-    // Analyze all characters in parallel using Llama 4 Vision
+    // Analyze all characters in parallel using Gemini 1.5 Flash
     const analysisPromises = characters.map(async (char) => {
-      const description = await analyzeCharacterWithVision(char.imageBase64, char.label);
+      const description = await analyzeCharacterWithGemini(char.imageBase64, char.label);
       return {
         label: char.label,
         description,

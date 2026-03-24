@@ -209,7 +209,9 @@ export async function POST(request: NextRequest) {
       const maxTextWidth = pageWidth - 2 * margin;
       const fontSize = 16;
       const lineHeight = 24;
-      const words = page.storyText.split(' ');
+      // Sanitize text: remove newlines and extra whitespace (WinAnsi encoding doesn't support them)
+      const sanitizedText = page.storyText.replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const words = sanitizedText.split(' ');
       let currentLine = '';
       let currentY = textStartY - 20;
 
