@@ -61,10 +61,31 @@ export function getAuthOptions(): NextAuthOptions {
       strategy: 'jwt',
     },
     callbacks: {
-      async jwt({ token, user }) {
+      async jwt({ token, user, account }) {
         if (user) {
           token.id = user.id;
           token.role = (user as { role?: string }).role;
+
+          // If signing in with Google, sync user data to our User model
+          if (account?.provider === 'google' && user.email) {
+            await connectDB();
+            const existingUser = await User.findOne({ email: user.email }).exec();
+
+            if (!existingUser) {
+              // Create user in our User model for Google OAuth users
+              const newUser = await User.create({
+                email: user.email,
+                name: user.name || '',
+                image: user.image || undefined,
+                role: 'PARENT', // Default role for OAuth users
+              });
+              token.id = newUser._id.toString();
+              token.role = newUser.role;
+            } else {
+              token.id = existingUser._id.toString();
+              token.role = existingUser.role;
+            }
+          }
         }
         return token;
       },
@@ -80,6 +101,7 @@ export function getAuthOptions(): NextAuthOptions {
       signIn: '/login',
       error: '/login',
     },
+    debug: process.env.NODE_ENV === 'development',
   };
 
   return cachedAuthOptions;

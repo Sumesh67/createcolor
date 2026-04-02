@@ -9,6 +9,8 @@ export interface IUser extends Document {
   role: 'CHILD' | 'PARENT';
   magicEnergy: number;
   lastEnergyReset: Date;
+  storybookCount: number;
+  lastStorybookReset: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,6 +45,14 @@ const UserSchema = new Schema<IUser>(
       default: 5,
     },
     lastEnergyReset: {
+      type: Date,
+      default: Date.now,
+    },
+    storybookCount: {
+      type: Number,
+      default: 0,
+    },
+    lastStorybookReset: {
       type: Date,
       default: Date.now,
     },

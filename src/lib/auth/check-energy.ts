@@ -130,3 +130,76 @@ export async function addEnergy(userId: string, amount: number = 1): Promise<Ene
     remaining: user.magicEnergy,
   };
 }
+
+/**
+ * Check and deduct storybook usage from a user (2 per day limit)
+ * @param userId - The MongoDB user ID
+ * @returns true if storybook was successfully deducted
+ * @throws EnergyError if user has reached daily storybook limit
+ */
+export async function checkAndDeductStorybook(userId: string): Promise<EnergyStatus> {
+  await connectDB();
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Check if we need to reset storybook count (new day)
+  if (isNewDay(user.lastStorybookReset)) {
+    console.log(`[Storybook] Resetting storybook count for user ${userId} (new day)`);
+    user.storybookCount = 0;
+    user.lastStorybookReset = new Date();
+    await user.save();
+  }
+
+  // Check if user has reached daily limit (2 storybooks per day)
+  if (user.storybookCount >= 2) {
+    const error: EnergyError = {
+      code: 'NO_ENERGY',
+      message: 'You\'ve created 2 storybooks today! 📖 Come back tomorrow for more magical stories!',
+    };
+    throw error;
+  }
+
+  // Increment storybook count
+  user.storybookCount += 1;
+  await user.save();
+
+  console.log(`[Storybook] User ${userId} created storybook, ${2 - user.storybookCount} remaining today`);
+
+  return {
+    success: true,
+    remaining: 2 - user.storybookCount,
+    resetAt: getNextResetTime(),
+  };
+}
+
+/**
+ * Get the current storybook status for a user without deducting
+ */
+export async function getStorybookStatus(userId: string): Promise<EnergyStatus> {
+  await connectDB();
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Check if we need to reset storybook count (new day)
+  if (isNewDay(user.lastStorybookReset)) {
+    user.storybookCount = 0;
+    user.lastStorybookReset = new Date();
+    await user.save();
+  }
+
+  const remaining = Math.max(0, 2 - user.storybookCount);
+
+  return {
+    success: remaining > 0,
+    remaining,
+    resetAt: getNextResetTime(),
+  };
+}

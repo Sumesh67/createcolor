@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { analyzeCharacters, writeStory } from '@/lib/ai/gemini-client';
-import { checkAndDeductEnergy, EnergyError } from '@/lib/auth/check-energy';
+import { checkAndDeductStorybook, EnergyError } from '@/lib/auth/check-energy';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import sharp from 'sharp';
 
@@ -149,10 +149,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check and deduct energy
+    // Check and deduct storybook usage (2 per day limit)
     try {
-      const energyStatus = await checkAndDeductEnergy(userId);
-      console.log(`[Storybook] Energy deducted, ${energyStatus.remaining} remaining`);
+      const storybookStatus = await checkAndDeductStorybook(userId);
+      console.log(`[Storybook] Storybook created, ${storybookStatus.remaining} remaining today`);
     } catch (error) {
       const energyError = error as EnergyError;
       if (energyError.code === 'NO_ENERGY') {

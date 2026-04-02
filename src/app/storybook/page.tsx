@@ -13,7 +13,6 @@ import {
   BookOpen,
   Download,
   RefreshCw,
-  Battery,
   LogIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -81,10 +80,10 @@ export default function StorybookPage() {
   const [energy, setEnergy] = useState<{ remaining: number; resetAt?: string } | null>(null);
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
-  // Fetch energy status on mount
+  // Fetch storybook status on mount
   useEffect(() => {
     if (session?.user) {
-      fetch("/api/energy/status")
+      fetch("/api/storybook/status")
         .then((res) => res.json())
         .then((data) => {
           if (data.remaining !== undefined) {
@@ -145,9 +144,9 @@ export default function StorybookPage() {
       return;
     }
 
-    // Check energy
+    // Check storybook limit
     if (energy !== null && energy.remaining <= 0) {
-      setError("Your Magic Wand needs rest! Come back tomorrow for more coloring fun.");
+      setError("You've created 2 storybooks today! 📖 Come back tomorrow for more magical stories!");
       return;
     }
 
@@ -233,8 +232,8 @@ export default function StorybookPage() {
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Something went wrong";
-      // Check for energy error
-      if (errorMessage.includes("Magic Wand") || errorMessage.includes("NO_ENERGY")) {
+      // Check for storybook limit error
+      if (errorMessage.includes("storybooks today") || errorMessage.includes("NO_ENERGY")) {
         setEnergy({ remaining: 0 });
       }
       setError(errorMessage);
@@ -308,7 +307,7 @@ export default function StorybookPage() {
                   AI-powered story generation with Gemini + FLUX illustrations
                 </p>
                 <Link
-                  href="/auth/signin"
+                  href="/login"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg font-display text-sm hover:bg-purple-600 transition-colors"
                 >
                   <LogIn className="w-4 h-4" />
@@ -317,7 +316,7 @@ export default function StorybookPage() {
               </motion.div>
             )}
 
-            {/* Energy Status */}
+            {/* Storybook Limit Status */}
             {session?.user && energy !== null && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -327,25 +326,25 @@ export default function StorybookPage() {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Battery className={`w-6 h-6 ${energy.remaining > 0 ? "text-purple-500" : "text-orange-500"}`} />
+                  <BookOpen className={`w-6 h-6 ${energy.remaining > 0 ? "text-purple-500" : "text-orange-500"}`} />
                   <div>
                     <p className="font-display text-sm font-semibold">
                       {energy.remaining > 0 ? (
-                        <>Magic Wand: {energy.remaining} use{energy.remaining !== 1 ? "s" : ""} left today</>
+                        <>{energy.remaining} storybook{energy.remaining !== 1 ? "s" : ""} left today</>
                       ) : (
-                        <>Magic Wand resting until tomorrow</>
+                        <>Daily limit reached (2/2)</>
                       )}
                     </p>
                     <p className="font-body text-xs text-foreground/60">
-                      Each storybook uses 1 magic energy
+                      You can create 2 storybooks per day
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-1">
                   {[...Array(2)].map((_, i) => (
-                    <Sparkles
+                    <BookOpen
                       key={i}
-                      className={`w-5 h-5 ${i < energy.remaining ? "text-purple-500" : "text-gray-300"}`}
+                      className={`w-5 h-5 ${i < (2 - energy.remaining) ? "text-purple-500" : "text-gray-300"}`}
                     />
                   ))}
                 </div>
@@ -483,7 +482,7 @@ export default function StorybookPage() {
                 {!session?.user
                   ? "Sign in to Create"
                   : energy !== null && energy.remaining <= 0
-                  ? "No Magic Left Today"
+                  ? "Daily Limit Reached (2/2)"
                   : "Create Our Story! 📖"}
               </Button>
 
@@ -495,7 +494,7 @@ export default function StorybookPage() {
 
               {session?.user && energy !== null && energy.remaining <= 0 && (
                 <p className="text-center text-sm text-orange-600 mt-2 font-body">
-                  Your Magic Wand needs rest! Come back tomorrow for more fun.
+                  You&apos;ve created 2 storybooks today! Come back tomorrow for more magical stories.
                 </p>
               )}
 
