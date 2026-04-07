@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, extractTokenFromRequest, verifyJWT } from '@/lib/auth';
 import { analyzePhoto } from '@/lib/ai/gemini-client';
 import { checkAndDeductEnergy, EnergyError } from '@/lib/auth/check-energy';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import sharp from 'sharp';
 
 export const maxDuration = 120;
+
+// CORS headers for mobile app
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
 
 interface SessionUser {
   id?: string;
@@ -133,30 +144,47 @@ async function postProcessImage(buffer: Buffer): Promise<Buffer> {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication (optional for mobile)
-    const session = await getServerSession(authOptions);
-    const userId = (session?.user as SessionUser)?.id;
+    // Check authentication - support both NextAuth session (web) and JWT token (mobile)
+    let userId: string | undefined;
 
-    // If user is authenticated, check and deduct energy
-    if (userId) {
-      try {
-        const energyStatus = await checkAndDeductEnergy(userId);
-        console.log(`[MagicLens] Energy deducted, ${energyStatus.remaining} remaining`);
-      } catch (error) {
-        const energyError = error as EnergyError;
-        if (energyError.code === 'NO_ENERGY') {
-          return NextResponse.json(
-            {
+    // Try JWT token first (for mobile app)
+    const token = extractTokenFromRequest(request);
+    if (token) {
+      const decoded = verifyJWT(token);
+      if (decoded) {
+        userId = decoded.id;
+      }
+    }
+
+    // If no JWT, try NextAuth session (for web app)
+    if (!userId) {
+      const session = await getServerSession(authOptions);
+      userId = (session?.user as SessionUser)?.id;
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required', message: 'Please sign in to use Magic Lens' },
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    // Check and deduct energy
+    try {
+      const energyStatus = await checkAndDeductEnergy(userId);
+      console.log(`[MagicLens] Energy deducted, ${energyStatus.remaining} remaining`);
+    } catch (error) {
+      const energyError = error as EnergyError;
+      if (energyError.code === 'NO_ENERGY') {
+        return NextResponse.json(
+          {
               error: 'NO_ENERGY',
               message: energyError.message,
             },
-            { status: 429 }
+            { status: 429, headers: corsHeaders }
           );
-        }
-        throw error;
       }
-    } else {
-      console.log('[MagicLens] Anonymous request (no energy tracking)');
+      throw error;
     }
 
     // Parse request body
@@ -166,7 +194,7 @@ export async function POST(request: NextRequest) {
     if (!imageBase64) {
       return NextResponse.json(
         { error: 'No image provided' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -193,7 +221,7 @@ export async function POST(request: NextRequest) {
       success: true,
       imageUrl,
       description,
-    });
+    }, { headers: corsHeaders });
   } catch (error) {
     console.error('[MagicLens] Error:', error);
     return NextResponse.json(
@@ -201,7 +229,7 @@ export async function POST(request: NextRequest) {
         error: 'Conversion failed',
         message: 'Could not convert your photo. Please try again.',
       },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
