@@ -6,6 +6,8 @@ import { getMongoClientPromise } from '@/lib/db/mongoClient';
 import connectDB from '@/lib/db/connect';
 import User from '@/lib/db/models/User';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { NextRequest } from 'next/server';
 
 // Lazy initialization of auth options to avoid build-time errors
 let cachedAuthOptions: NextAuthOptions | null = null;
@@ -115,3 +117,32 @@ export const authOptions = {
   get callbacks() { return getAuthOptions().callbacks; },
   get pages() { return getAuthOptions().pages; },
 } as NextAuthOptions;
+
+// JWT verification helper for mobile app
+const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'fallback-secret-change-in-production';
+
+export interface JWTPayload {
+  id: string;
+  email: string;
+  role?: string;
+}
+
+export function verifyJWT(token: string): JWTPayload | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    return decoded;
+  } catch (error) {
+    console.error('JWT verification failed:', error);
+    return null;
+  }
+}
+
+export function extractTokenFromRequest(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader) return null;
+
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
+
+  return parts[1];
+}

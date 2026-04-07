@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, extractTokenFromRequest, verifyJWT } from '@/lib/auth';
 import { generateColoringPage } from '@/lib/ai/generateColoringPage';
 import { buildPromptFromSlots, buildCustomPrompt, getDisplayPrompt } from '@/lib/ai/promptBuilder';
 import { checkPromptSafety } from '@/lib/ai/safetyFilter';
@@ -16,12 +16,48 @@ import { SlotSelections } from '@/types';
 
 export const maxDuration = 60;
 
+// CORS headers for mobile app
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 interface SessionUser {
   id?: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication - support both NextAuth session (web) and JWT token (mobile)
+    let userId: string | undefined;
+
+    // Try JWT token first (for mobile app)
+    const token = extractTokenFromRequest(request);
+    if (token) {
+      const decoded = verifyJWT(token);
+      if (decoded) {
+        userId = decoded.id;
+      }
+    }
+
+    // If no JWT, try NextAuth session (for web app)
+    if (!userId) {
+      const session = await getServerSession(authOptions);
+      userId = (session?.user as SessionUser)?.id;
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required', message: 'Please sign in to generate coloring pages' },
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
     // Daily limit: 20 images per day, resets at midnight
     const identifier = getRateLimitIdentifier(request);
     const dailyLimit = checkDailyLimit(identifier, 20);
@@ -37,7 +73,7 @@ export async function POST(request: NextRequest) {
           used: dailyLimit.used,
           limit: 20,
         },
-        { status: 429 }
+        { status: 429, headers: corsHeaders }
       );
     }
 
@@ -53,7 +89,7 @@ export async function POST(request: NextRequest) {
       const file = formData.get('image') as File | null;
 
       if (!file) {
-        return NextResponse.json({ error: 'No image provided' }, { status: 400 });
+        return NextResponse.json({ error: 'No image provided' }, { status: 400, headers: corsHeaders });
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -70,10 +106,6 @@ export async function POST(request: NextRequest) {
         customPrompt?: string;
       };
 
-      // Get session info early
-      const session = await getServerSession(authOptions);
-      const userId = (session?.user as SessionUser)?.id;
-
       // Determine the raw user prompt (for filtering) and display prompt
       let userPrompt: string;
       let displayPrompt: string;
@@ -89,7 +121,7 @@ export async function POST(request: NextRequest) {
       } else {
         return NextResponse.json(
           { error: 'Either slotSelections or customPrompt is required' },
-          { status: 400 }
+          { status: 400, headers: corsHeaders }
         );
       }
 
@@ -103,7 +135,7 @@ export async function POST(request: NextRequest) {
             error: 'Content not allowed',
             message: inputFilterResult.reason || "Let's try something more fun! 🌈",
           },
-          { status: 400 }
+          { status: 400, headers: corsHeaders }
         );
       }
 
@@ -115,7 +147,7 @@ export async function POST(request: NextRequest) {
             error: 'Content not allowed',
             message: legacySafetyResult.reason || "Let's try something different!",
           },
-          { status: 400 }
+          { status: 400, headers: corsHeaders }
         );
       }
 
@@ -136,20 +168,16 @@ export async function POST(request: NextRequest) {
         imageUrl = generatedImageUrl;
         const thumbnailUrl = generatedImageUrl;
 
-        let pageId = `temp_${Date.now()}`;
+        await connectDB();
 
-        if (userId) {
-          await connectDB();
+        const page = await ColoringPage.create({
+          userId: new mongoose.Types.ObjectId(userId),
+          prompt,
+          imageUrl,
+          thumbnailUrl,
+        });
 
-          const page = await ColoringPage.create({
-            userId: new mongoose.Types.ObjectId(userId),
-            prompt,
-            imageUrl,
-            thumbnailUrl,
-          });
-
-          pageId = page._id.toString();
-        }
+        const pageId = page._id.toString();
 
         return NextResponse.json({
           imageUrl,
@@ -157,7 +185,7 @@ export async function POST(request: NextRequest) {
           pageId,
           prompt: displayPrompt,
           remaining: dailyLimit.remaining,
-        });
+        }, { headers: corsHeaders });
       }
 
       // For other image APIs (like DALL-E), fetch and process
@@ -175,20 +203,16 @@ export async function POST(request: NextRequest) {
         ? await uploadImage(thumbnailBuffer)
         : bufferToDataUrl(thumbnailBuffer);
 
-      let pageId = `temp_${Date.now()}`;
+      await connectDB();
 
-      if (userId) {
-        await connectDB();
+      const page = await ColoringPage.create({
+        userId: new mongoose.Types.ObjectId(userId),
+        prompt: displayPrompt,
+        imageUrl,
+        thumbnailUrl,
+      });
 
-        const page = await ColoringPage.create({
-          userId: new mongoose.Types.ObjectId(userId),
-          prompt: displayPrompt,
-          imageUrl,
-          thumbnailUrl,
-        });
-
-        pageId = page._id.toString();
-      }
+      const pageId = page._id.toString();
 
       return NextResponse.json({
         imageUrl,
@@ -196,7 +220,7 @@ export async function POST(request: NextRequest) {
         pageId,
         prompt: displayPrompt,
         remaining: dailyLimit.remaining,
-      });
+      }, { headers: corsHeaders });
     }
 
     // Create thumbnail (for non-Pollinations images - image upload case)
@@ -205,23 +229,17 @@ export async function POST(request: NextRequest) {
       ? await uploadImage(thumbnailBuffer)
       : bufferToDataUrl(thumbnailBuffer);
 
-    // Get session and save to database if authenticated (image upload case)
-    const session = await getServerSession(authOptions);
-    const uploadUserId = (session?.user as SessionUser)?.id;
-    let pageId = `temp_${Date.now()}`;
+    // Save to database (user is already authenticated)
+    await connectDB();
 
-    if (uploadUserId) {
-      await connectDB();
+    const page = await ColoringPage.create({
+      userId: new mongoose.Types.ObjectId(userId),
+      prompt,
+      imageUrl,
+      thumbnailUrl,
+    });
 
-      const page = await ColoringPage.create({
-        userId: new mongoose.Types.ObjectId(uploadUserId),
-        prompt,
-        imageUrl,
-        thumbnailUrl,
-      });
-
-      pageId = page._id.toString();
-    }
+    const pageId = page._id.toString();
 
     return NextResponse.json({
       imageUrl,
@@ -229,7 +247,7 @@ export async function POST(request: NextRequest) {
       pageId,
       prompt,
       remaining: dailyLimit.remaining,
-    });
+    }, { headers: corsHeaders });
   } catch (error) {
     console.error('Error generating coloring page:', error);
     return NextResponse.json(
@@ -237,7 +255,7 @@ export async function POST(request: NextRequest) {
         error: 'Generation failed',
         message: 'Oops! Something went wrong. Please try again.',
       },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
