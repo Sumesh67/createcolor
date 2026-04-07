@@ -17,10 +17,9 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
-    const { name, email, password, role } = body;
+    const { email, password } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -29,42 +28,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!name) {
-      return NextResponse.json(
-        { message: 'Name is required' },
-        { status: 400, headers: corsHeaders }
-      );
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json(
-        { message: 'Password must be at least 6 characters long' },
-        { status: 400, headers: corsHeaders }
-      );
-    }
-
     await connectDB();
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    // Find user with password field
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
 
-    if (existingUser) {
+    if (!user || !user.password) {
       return NextResponse.json(
-        { message: 'An account with this email already exists' },
-        { status: 409, headers: corsHeaders }
+        { message: 'Invalid email or password' },
+        { status: 401, headers: corsHeaders }
       );
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // Verify password
+    const isValid = await bcrypt.compare(password, user.password);
 
-    // Create user
-    const user = await User.create({
-      name: name.trim(),
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      role: role || 'PARENT',
-    });
+    if (!isValid) {
+      return NextResponse.json(
+        { message: 'Invalid email or password' },
+        { status: 401, headers: corsHeaders }
+      );
+    }
 
     // Generate JWT token
     const token = jwt.sign(
@@ -77,6 +61,7 @@ export async function POST(request: NextRequest) {
       { expiresIn: '30d' }
     );
 
+    // Return user data and token
     return NextResponse.json({
       token,
       user: {
@@ -85,11 +70,11 @@ export async function POST(request: NextRequest) {
         name: user.name,
         role: user.role,
       },
-    }, { status: 201, headers: corsHeaders });
-  } catch (error) {
-    console.error('Signup error:', error);
+    }, { headers: corsHeaders });
+  } catch (error: any) {
+    console.error('Login error:', error);
     return NextResponse.json(
-      { message: 'Failed to create account. Please try again.' },
+      { message: 'Login failed. Please try again.' },
       { status: 500, headers: corsHeaders }
     );
   }
