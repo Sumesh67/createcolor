@@ -34,6 +34,7 @@ interface SessionUser {
 export async function POST(request: NextRequest) {
   try {
     // Check authentication - support both NextAuth session (web) and JWT token (mobile)
+    // Authentication is OPTIONAL for Create tab
     let userId: string | undefined;
 
     // Try JWT token first (for mobile app)
@@ -51,27 +52,24 @@ export async function POST(request: NextRequest) {
       userId = (session?.user as SessionUser)?.id;
     }
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Authentication required', message: 'Please sign in to generate coloring pages' },
-        { status: 401, headers: corsHeaders }
-      );
-    }
+    // Rate limiting based on authentication status
+    // Authenticated users: 20/day, Unauthenticated users: 10/day
+    const dailyLimit = userId ? 20 : 10;
+    const identifier = userId || getRateLimitIdentifier(request);
+    const limitCheck = checkDailyLimit(identifier, dailyLimit);
 
-    // Daily limit: 20 images per day, resets at midnight
-    const identifier = getRateLimitIdentifier(request);
-    const dailyLimit = checkDailyLimit(identifier, 20);
-
-    if (!dailyLimit.allowed) {
-      const hoursUntilReset = Math.ceil(dailyLimit.resetIn / (60 * 60 * 1000));
+    if (!limitCheck.allowed) {
+      const hoursUntilReset = Math.ceil(limitCheck.resetIn / (60 * 60 * 1000));
       return NextResponse.json(
         {
           error: 'Daily limit reached',
-          message: `You've used all 20 free coloring pages for today! Come back tomorrow for more magic! ✨`,
-          resetIn: dailyLimit.resetIn,
+          message: userId
+            ? `You've used all 20 free coloring pages for today! Come back tomorrow for more magic! ✨`
+            : `You've used all 10 free coloring pages for today! Sign in to get 20/day or come back tomorrow! ✨`,
+          resetIn: limitCheck.resetIn,
           hoursUntilReset,
-          used: dailyLimit.used,
-          limit: 20,
+          used: limitCheck.used,
+          limit: dailyLimit,
         },
         { status: 429, headers: corsHeaders }
       );
@@ -168,23 +166,25 @@ export async function POST(request: NextRequest) {
         imageUrl = generatedImageUrl;
         const thumbnailUrl = generatedImageUrl;
 
-        await connectDB();
-
-        const page = await ColoringPage.create({
-          userId: new mongoose.Types.ObjectId(userId),
-          prompt,
-          imageUrl,
-          thumbnailUrl,
-        });
-
-        const pageId = page._id.toString();
+        // Only save to database if user is authenticated
+        let pageId: string | undefined;
+        if (userId) {
+          await connectDB();
+          const page = await ColoringPage.create({
+            userId: new mongoose.Types.ObjectId(userId),
+            prompt,
+            imageUrl,
+            thumbnailUrl,
+          });
+          pageId = page._id.toString();
+        }
 
         return NextResponse.json({
           imageUrl,
           thumbnailUrl,
           pageId,
           prompt: displayPrompt,
-          remaining: dailyLimit.remaining,
+          remaining: limitCheck.remaining,
         }, { headers: corsHeaders });
       }
 
@@ -203,23 +203,25 @@ export async function POST(request: NextRequest) {
         ? await uploadImage(thumbnailBuffer)
         : bufferToDataUrl(thumbnailBuffer);
 
-      await connectDB();
-
-      const page = await ColoringPage.create({
-        userId: new mongoose.Types.ObjectId(userId),
-        prompt: displayPrompt,
-        imageUrl,
-        thumbnailUrl,
-      });
-
-      const pageId = page._id.toString();
+      // Only save to database if user is authenticated
+      let pageId: string | undefined;
+      if (userId) {
+        await connectDB();
+        const page = await ColoringPage.create({
+          userId: new mongoose.Types.ObjectId(userId),
+          prompt: displayPrompt,
+          imageUrl,
+          thumbnailUrl,
+        });
+        pageId = page._id.toString();
+      }
 
       return NextResponse.json({
         imageUrl,
         thumbnailUrl,
         pageId,
         prompt: displayPrompt,
-        remaining: dailyLimit.remaining,
+        remaining: limitCheck.remaining,
       }, { headers: corsHeaders });
     }
 
@@ -229,24 +231,25 @@ export async function POST(request: NextRequest) {
       ? await uploadImage(thumbnailBuffer)
       : bufferToDataUrl(thumbnailBuffer);
 
-    // Save to database (user is already authenticated)
-    await connectDB();
-
-    const page = await ColoringPage.create({
-      userId: new mongoose.Types.ObjectId(userId),
-      prompt,
-      imageUrl,
-      thumbnailUrl,
-    });
-
-    const pageId = page._id.toString();
+    // Only save to database if user is authenticated
+    let pageId: string | undefined;
+    if (userId) {
+      await connectDB();
+      const page = await ColoringPage.create({
+        userId: new mongoose.Types.ObjectId(userId),
+        prompt,
+        imageUrl,
+        thumbnailUrl,
+      });
+      pageId = page._id.toString();
+    }
 
     return NextResponse.json({
       imageUrl,
       thumbnailUrl,
       pageId,
       prompt,
-      remaining: dailyLimit.remaining,
+      remaining: limitCheck.remaining,
     }, { headers: corsHeaders });
   } catch (error) {
     console.error('Error generating coloring page:', error);
