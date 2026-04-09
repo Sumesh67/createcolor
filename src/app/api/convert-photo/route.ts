@@ -405,6 +405,17 @@ async function convertColored(buffer: Buffer): Promise<Buffer> {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    const userId = (session?.user as SessionUser)?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required', message: 'Please sign in to convert photos' },
+        { status: 401 }
+      );
+    }
+
     // Daily limit: 20 images per day (shared with generate), resets at midnight
     const identifier = getRateLimitIdentifier(request);
     const dailyLimit = checkDailyLimit(identifier, 20);
@@ -504,23 +515,17 @@ export async function POST(request: NextRequest) {
       ? await uploadImage(thumbnailBuffer)
       : bufferToDataUrl(thumbnailBuffer);
 
-    // Save to database if authenticated
-    const session = await getServerSession(authOptions);
-    const userId = (session?.user as SessionUser)?.id;
-    let pageId = `temp_${Date.now()}`;
+    // Save to database (user is already authenticated)
+    await connectDB();
 
-    if (userId) {
-      await connectDB();
+    const page = await ColoringPage.create({
+      userId: new mongoose.Types.ObjectId(userId),
+      prompt: 'Photo converted with Magic Lens',
+      imageUrl,
+      thumbnailUrl,
+    });
 
-      const page = await ColoringPage.create({
-        userId: new mongoose.Types.ObjectId(userId),
-        prompt: 'Photo converted with Magic Lens',
-        imageUrl,
-        thumbnailUrl,
-      });
-
-      pageId = page._id.toString();
-    }
+    const pageId = page._id.toString();
 
     console.log(`[ConvertPhoto] Success! Generated ${processedBuffer.length} bytes`);
 
