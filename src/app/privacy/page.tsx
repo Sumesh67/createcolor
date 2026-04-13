@@ -5,7 +5,7 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-gradient-to-b from-pink-50 to-purple-50 py-12 px-4">
       <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-lg p-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Privacy Policy</h1>
-        <p className="text-gray-600 mb-4">Last updated: March 2026</p>
+        <p className="text-gray-600 mb-4">Last updated: April 12, 2026</p>
 
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-800 mb-3">Overview</h2>
@@ -23,6 +23,21 @@ export default function PrivacyPage() {
             <li><strong>Account Information:</strong> Email address if you choose to create an account (optional)</li>
             <li><strong>Usage Data:</strong> Anonymous analytics to improve the app experience</li>
           </ul>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-800 mb-3">Mobile App Permissions</h2>
+          <p className="text-gray-600 mb-3">
+            Our mobile app requests the following permissions to provide features. All permissions are optional and only used when you actively use the related feature:
+          </p>
+          <ul className="list-disc list-inside text-gray-600 space-y-2">
+            <li><strong>Camera:</strong> Used only for the Magic Lens feature to take photos and convert them into coloring pages. Photos are processed on-device and only sent to our servers if you choose to convert them.</li>
+            <li><strong>Microphone:</strong> Used only for voice input to describe coloring pages verbally. Voice recordings are converted to text immediately and not stored.</li>
+            <li><strong>Photo Library:</strong> Used to save generated coloring pages to your device and to select existing photos for Magic Lens conversion. We never access your photos without your explicit action.</li>
+          </ul>
+          <p className="text-gray-600 mt-3">
+            <strong>Important:</strong> We do not collect, store, or share any photos, voice recordings, or camera data. These permissions are used only when you actively engage with the feature, and all data is processed securely.
+          </p>
         </section>
 
         <section className="mb-8">
