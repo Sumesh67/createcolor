@@ -35,7 +35,7 @@ function LoginContent() {
         console.error('Login error:', result.error);
         setError(result.error === 'CredentialsSignin' ? 'Invalid email or password' : result.error);
       } else if (result?.ok) {
-        router.push(callbackUrl);
+        window.location.href = callbackUrl;
       } else {
         setError("Login failed. Please try again.");
       }
