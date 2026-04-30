@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions, extractTokenFromRequest, verifyJWT } from '@/lib/auth';
 import { analyzePhoto } from '@/lib/ai/gemini-client';
-import { checkAndDeductEnergy, EnergyError } from '@/lib/auth/check-energy';
+import { checkAndDeductEnergy, getEnergyStatus, addEnergy, EnergyError } from '@/lib/auth/check-energy';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import sharp from 'sharp';
 
 export const maxDuration = 120;
 
-// CORS headers for mobile app
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -30,19 +29,59 @@ interface TogetherImageResponse {
   }>;
 }
 
-/**
- * Generate coloring page using FLUX.1-dev
- * Cost estimate: ~$0.005 per image (28 steps)
- */
-async function generateColoringPage(description: string): Promise<Buffer> {
+interface TogetherChatResponse {
+  choices: Array<{
+    message: { content: string };
+  }>;
+}
+
+async function analyzeWithLlama(imageBase64: string): Promise<string> {
   if (!process.env.TOGETHER_API_KEY) {
     throw new Error('TOGETHER_API_KEY not configured');
   }
 
-  console.log('[MagicLens] Generating coloring page with FLUX.1-dev...');
-  console.log('[MagicLens] Description:', description);
+  const imageDataUrl = `data:image/jpeg;base64,${imageBase64}`;
 
-  const prompt = `A professional children's coloring book page of ${description}. Thick bold black outlines, pure white background, no shading, no gray, no color, simple clean line art, large areas to color, minimalist, G-rated, printable.`;
+  const response = await fetch('https://api.together.xyz/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.TOGETHER_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: imageDataUrl } },
+            {
+              type: 'text',
+              text: 'Describe this photo in detail for a children\'s coloring book artist: subject, pose, clothing, expression, background. Keep it G-rated and under 100 words.',
+            },
+          ],
+        },
+      ],
+      max_tokens: 200,
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) throw new Error(`Llama vision error: ${response.status}`);
+
+  const data = (await response.json()) as TogetherChatResponse;
+  const description = data.choices?.[0]?.message?.content?.trim();
+  if (!description) throw new Error('No description from Llama');
+
+  return description;
+}
+
+async function generateWithFlux(description: string): Promise<Buffer> {
+  if (!process.env.TOGETHER_API_KEY) {
+    throw new Error('TOGETHER_API_KEY not configured');
+  }
+
+  const prompt = `Children's coloring book page of ${description}. Thick bold black outlines, pure white background, no shading, no gray, no color, simple clean line art, large areas to color, minimalist, G-rated, printable.`;
 
   const response = await fetch('https://api.together.xyz/v1/images/generations', {
     method: 'POST',
@@ -53,7 +92,6 @@ async function generateColoringPage(description: string): Promise<Buffer> {
     body: JSON.stringify({
       model: 'black-forest-labs/FLUX.1-schnell',
       prompt,
-      negative_prompt: 'color, shading, gradients, realistic, photorealistic, messy lines, text, watermark, nudity, gore, scary, dark background',
       width: 1024,
       height: 1024,
       steps: 4,
@@ -62,57 +100,55 @@ async function generateColoringPage(description: string): Promise<Buffer> {
     }),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('[MagicLens] FLUX.1-dev error:', errorText);
-    throw new Error(`Image generation failed: ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`FLUX error: ${response.status}`);
 
   const data = (await response.json()) as TogetherImageResponse;
-  const imageData = data.data?.[0];
+  const b64 = data.data?.[0]?.b64_json;
+  if (!b64) throw new Error('No image from FLUX');
 
-  if (!imageData?.b64_json) {
-    throw new Error('No image data returned');
-  }
-
-  console.log('[MagicLens] FLUX.1-dev image generated');
-  console.log('[MagicLens] Estimated image cost: ~$0.005');
-
-  return Buffer.from(imageData.b64_json, 'base64');
+  return Buffer.from(b64, 'base64');
 }
 
-/**
- * Post-process image to force pure black/white coloring page
- */
-async function postProcessImage(buffer: Buffer): Promise<Buffer> {
-  console.log('[MagicLens] Post-processing image...');
+async function convertWithSharp(imageBase64: string): Promise<Buffer> {
+  console.log('[MagicLens] Using local Sharp edge detection fallback');
+  const buffer = Buffer.from(imageBase64, 'base64');
 
-  // Step 1: Convert to grayscale and apply threshold for pure B&W
+  const resized = await sharp(buffer)
+    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+    .toBuffer();
+
+  const blurred = await sharp(resized).grayscale().blur(1.5).toBuffer();
+  const highContrast = await sharp(blurred).linear(3, -200).normalize().toBuffer();
+  const thresholded = await sharp(highContrast).threshold(100).toBuffer();
+  const inverted = await sharp(thresholded).negate().toBuffer();
+  const cleaned = await sharp(inverted).median(3).toBuffer();
+
+  return sharp(cleaned)
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .png({ quality: 100 })
+    .toBuffer();
+}
+
+async function postProcessImage(buffer: Buffer): Promise<Buffer> {
   let processed = await sharp(buffer)
     .grayscale()
     .normalize()
-    .threshold(180) // Force pure black/white
+    .threshold(180)
     .toBuffer();
 
-  // Step 2: Median filter to smooth jagged lines
-  processed = await sharp(processed)
-    .median(1)
-    .toBuffer();
+  processed = await sharp(processed).median(1).toBuffer();
 
-  // Step 3: Slight dilation to thicken lines (using convolution)
-  const dilationKernel = [1, 1, 1, 1, 1, 1, 1, 1, 1];
   processed = await sharp(processed)
     .convolve({
       width: 3,
       height: 3,
-      kernel: dilationKernel,
+      kernel: [1, 1, 1, 1, 1, 1, 1, 1, 1],
       scale: 9,
       offset: 0,
     })
-    .threshold(200) // Re-threshold after dilation
+    .threshold(200)
     .toBuffer();
 
-  // Step 4: Add watermark
   const { width } = await sharp(processed).metadata();
   const watermarkSvg = `
     <svg width="${width}" height="30">
@@ -122,41 +158,24 @@ async function postProcessImage(buffer: Buffer): Promise<Buffer> {
     </svg>
   `;
 
-  const final = await sharp(processed)
+  return sharp(processed)
     .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .extend({
-      bottom: 30,
-      background: { r: 255, g: 255, b: 255 },
-    })
-    .composite([
-      {
-        input: Buffer.from(watermarkSvg),
-        gravity: 'south',
-      },
-    ])
+    .extend({ bottom: 30, background: { r: 255, g: 255, b: 255 } })
+    .composite([{ input: Buffer.from(watermarkSvg), gravity: 'south' }])
     .png({ quality: 100 })
     .toBuffer();
-
-  console.log('[MagicLens] Post-processing complete');
-
-  return final;
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    // Check authentication - support both NextAuth session (web) and JWT token (mobile)
-    let userId: string | undefined;
+  let userId: string | undefined;
 
-    // Try JWT token first (for mobile app)
+  try {
+    // Auth: JWT (mobile) or NextAuth session (web)
     const token = extractTokenFromRequest(request);
     if (token) {
       const decoded = verifyJWT(token);
-      if (decoded) {
-        userId = decoded.id;
-      }
+      if (decoded) userId = decoded.id;
     }
-
-    // If no JWT, try NextAuth session (for web app)
     if (!userId) {
       const session = await getServerSession(authOptions);
       userId = (session?.user as SessionUser)?.id;
@@ -169,25 +188,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check and deduct energy
-    try {
-      const energyStatus = await checkAndDeductEnergy(userId);
-      console.log(`[MagicLens] Energy deducted, ${energyStatus.remaining} remaining`);
-    } catch (error) {
-      const energyError = error as EnergyError;
-      if (energyError.code === 'NO_ENERGY') {
-        return NextResponse.json(
-          {
-              error: 'NO_ENERGY',
-              message: energyError.message,
-            },
-            { status: 429, headers: corsHeaders }
-          );
-      }
-      throw error;
+    // Check energy before doing anything (without deducting yet)
+    const energyCheck = await getEnergyStatus(userId);
+    if (!energyCheck.success) {
+      return NextResponse.json(
+        { error: 'NO_ENERGY', message: 'Your Magic Wand needs to rest! ✨ Come back tomorrow for more coloring fun!' },
+        { status: 429, headers: corsHeaders }
+      );
     }
 
-    // Parse request body
     const body = await request.json();
     const { imageBase64 } = body as { imageBase64: string };
 
@@ -199,21 +208,47 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[MagicLens] Starting Magic Lens conversion...');
-    console.log('[MagicLens] Total estimated cost: ~$0.008 (Gemini: $0.002 + FLUX: $0.005 + processing)');
 
-    // Step 1: Analyze photo with Gemini
-    const description = await analyzePhoto(imageBase64);
+    let processedImage: Buffer;
+    let description: string | undefined;
 
-    // Step 2: Generate coloring page with FLUX.1-dev
-    const rawImage = await generateColoringPage(description);
+    // Try AI pipeline (Gemini or Llama → FLUX), fall back to local Sharp
+    try {
+      // Step 1: Analyze photo — try Gemini first, then Llama
+      try {
+        description = await analyzePhoto(imageBase64);
+        console.log('[MagicLens] Photo analyzed with Gemini');
+      } catch (geminiError) {
+        console.warn('[MagicLens] Gemini failed, trying Llama:', geminiError);
+        description = await analyzeWithLlama(imageBase64);
+        console.log('[MagicLens] Photo analyzed with Llama');
+      }
 
-    // Step 3: Post-process for pure B&W
-    const processedImage = await postProcessImage(rawImage);
+      // Step 2: Generate coloring page with FLUX
+      const rawImage = await generateWithFlux(description);
+      console.log('[MagicLens] Image generated with FLUX');
 
-    // Step 4: Upload to storage
+      // Step 3: Post-process
+      processedImage = await postProcessImage(rawImage);
+    } catch (aiError) {
+      console.warn('[MagicLens] AI pipeline failed, using local edge detection:', aiError);
+      processedImage = await convertWithSharp(imageBase64);
+    }
+
+    // Step 4: Upload
     const imageUrl = isS3Configured()
       ? await uploadImage(processedImage)
       : bufferToDataUrl(processedImage);
+
+    // Deduct energy only after successful generation
+    let energyRemaining = energyCheck.remaining;
+    try {
+      const energyStatus = await checkAndDeductEnergy(userId);
+      energyRemaining = energyStatus.remaining;
+    } catch (energyErr) {
+      // Energy check passed above; log but don't fail the request
+      console.error('[MagicLens] Failed to deduct energy after success:', energyErr);
+    }
 
     console.log('[MagicLens] Conversion complete!');
 
@@ -221,6 +256,7 @@ export async function POST(request: NextRequest) {
       success: true,
       imageUrl,
       description,
+      energyRemaining,
     }, { headers: corsHeaders });
   } catch (error) {
     console.error('[MagicLens] Error:', error);

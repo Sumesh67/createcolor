@@ -16,5 +16,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ['/create/:path*', '/gallery/:path*', '/parent/:path*', '/upload/:path*'],
+  matcher: ['/gallery/:path*', '/parent/:path*', '/upload/:path*', '/storybook/:path*'],
 };
