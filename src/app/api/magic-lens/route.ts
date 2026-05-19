@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions, extractTokenFromRequest, verifyJWT } from '@/lib/auth';
 import { analyzePhoto } from '@/lib/ai/gemini-client';
-import { checkAndDeductEnergy, getEnergyStatus, addEnergy, EnergyError } from '@/lib/auth/check-energy';
+import { checkAndConsumeSpark, getSparkStatus, EnergyError } from '@/lib/auth/check-energy';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import sharp from 'sharp';
 
@@ -81,7 +81,7 @@ async function generateWithFlux(description: string): Promise<Buffer> {
     throw new Error('TOGETHER_API_KEY not configured');
   }
 
-  const prompt = `Children's coloring book page of ${description}. Thick bold black outlines, pure white background, no shading, no gray, no color, simple clean line art, large areas to color, minimalist, G-rated, printable.`;
+  const prompt = `Children's coloring book outline drawing of ${description}. ONLY thick bold black ink outlines on a pure white background. Cartoon line art style. No shading, no gray, no color fills, no gradients, no shadows, no textures. Simple clean lines only, large white areas to color in. Printable coloring page.`;
 
   const response = await fetch('https://api.together.xyz/v1/images/generations', {
     method: 'POST',
@@ -113,32 +113,38 @@ async function convertWithSharp(imageBase64: string): Promise<Buffer> {
   console.log('[MagicLens] Using local Sharp edge detection fallback');
   const buffer = Buffer.from(imageBase64, 'base64');
 
-  const resized = await sharp(buffer)
+  // Step 1: Resize + grayscale
+  const gray = await sharp(buffer)
     .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-    .toBuffer();
-
-  const blurred = await sharp(resized).grayscale().blur(1.5).toBuffer();
-  const highContrast = await sharp(blurred).linear(3, -200).normalize().toBuffer();
-  const thresholded = await sharp(highContrast).threshold(100).toBuffer();
-  const inverted = await sharp(thresholded).negate().toBuffer();
-  const cleaned = await sharp(inverted).median(3).toBuffer();
-
-  return sharp(cleaned)
-    .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .png({ quality: 100 })
-    .toBuffer();
-}
-
-async function postProcessImage(buffer: Buffer): Promise<Buffer> {
-  let processed = await sharp(buffer)
     .grayscale()
-    .normalize()
-    .threshold(180)
     .toBuffer();
 
-  processed = await sharp(processed).median(1).toBuffer();
+  // Step 2: Slight blur to suppress texture noise before edge detection
+  const blurred = await sharp(gray).blur(1.5).toBuffer();
 
-  processed = await sharp(processed)
+  // Step 3: Laplacian edge detection — finds borders between regions, not fills
+  // offset:128 centres the result so edges appear bright on mid-gray background
+  const edges = await sharp(blurred)
+    .convolve({
+      width: 3,
+      height: 3,
+      kernel: [0, -1, 0, -1, 4, -1, 0, -1, 0],
+      scale: 1,
+      offset: 128,
+    })
+    .toBuffer();
+
+  // Step 4: Normalize so edges span the full brightness range
+  const normalized = await sharp(edges).normalize().toBuffer();
+
+  // Step 5: Threshold — bright pixels are edges; keep them, discard background
+  const thresholded = await sharp(normalized).threshold(85).toBuffer();
+
+  // Step 6: Invert → edges become black lines on white background
+  const inverted = await sharp(thresholded).negate().toBuffer();
+
+  // Step 7: Thicken lines slightly so they're printable
+  const thickened = await sharp(inverted)
     .convolve({
       width: 3,
       height: 3,
@@ -148,6 +154,29 @@ async function postProcessImage(buffer: Buffer): Promise<Buffer> {
     })
     .threshold(200)
     .toBuffer();
+
+  // Step 8: Remove noise with median filter
+  const cleaned = await sharp(thickened).median(2).toBuffer();
+
+  return sharp(cleaned)
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .png({ quality: 100 })
+    .toBuffer();
+}
+
+async function postProcessImage(buffer: Buffer): Promise<Buffer> {
+  // FLUX should have already generated near-line-art (white bg, dark lines).
+  // We only need to clean it up — NOT re-threshold as if it were a photo.
+
+  // Step 1: Grayscale
+  let processed = await sharp(buffer).grayscale().toBuffer();
+
+  // Step 2: Threshold at 180 — keeps ink lines + any medium-gray areas as black.
+  // 230 was too aggressive and erased near-white FLUX lines.
+  processed = await sharp(processed).threshold(160).toBuffer();
+
+  // Step 3: Light noise removal
+  processed = await sharp(processed).median(1).toBuffer();
 
   const { width } = await sharp(processed).metadata();
   const watermarkSvg = `
@@ -188,11 +217,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check energy before doing anything (without deducting yet)
-    const energyCheck = await getEnergyStatus(userId);
+    // Check sparks before doing anything (without deducting yet)
+    const energyCheck = await getSparkStatus(userId);
     if (!energyCheck.success) {
       return NextResponse.json(
-        { error: 'NO_ENERGY', message: 'Your Magic Wand needs to rest! ✨ Come back tomorrow for more coloring fun!' },
+        { error: 'NO_ENERGY', message: 'Your Magic Wand needs to rest ✨ Come back tomorrow!' },
         { status: 429, headers: corsHeaders }
       );
     }
@@ -231,8 +260,8 @@ export async function POST(request: NextRequest) {
       // Step 3: Post-process
       processedImage = await postProcessImage(rawImage);
     } catch (aiError) {
-      console.warn('[MagicLens] AI pipeline failed, using local edge detection:', aiError);
-      processedImage = await convertWithSharp(imageBase64);
+      console.error('[MagicLens] AI pipeline failed:', aiError);
+      throw aiError; // Surface the real error instead of silently producing a bad result
     }
 
     // Step 4: Upload
@@ -240,14 +269,13 @@ export async function POST(request: NextRequest) {
       ? await uploadImage(processedImage)
       : bufferToDataUrl(processedImage);
 
-    // Deduct energy only after successful generation
+    // Consume spark only after successful generation
     let energyRemaining = energyCheck.remaining;
     try {
-      const energyStatus = await checkAndDeductEnergy(userId);
-      energyRemaining = energyStatus.remaining;
-    } catch (energyErr) {
-      // Energy check passed above; log but don't fail the request
-      console.error('[MagicLens] Failed to deduct energy after success:', energyErr);
+      const sparkStatus = await checkAndConsumeSpark(userId);
+      energyRemaining = sparkStatus.remaining;
+    } catch (sparkErr) {
+      console.error('[MagicLens] Failed to consume spark after success:', sparkErr);
     }
 
     console.log('[MagicLens] Conversion complete!');
@@ -259,11 +287,12 @@ export async function POST(request: NextRequest) {
       energyRemaining,
     }, { headers: corsHeaders });
   } catch (error) {
-    console.error('[MagicLens] Error:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[MagicLens] Error:', msg);
     return NextResponse.json(
       {
         error: 'Conversion failed',
-        message: 'Could not convert your photo. Please try again.',
+        message: `Could not convert your photo: ${msg}`,
       },
       { status: 500, headers: corsHeaders }
     );

@@ -251,7 +251,7 @@ export default function CreatePage() {
             <span className="font-body text-sm">Back</span>
           </Link>
           <h1 className="font-display text-lg font-bold">
-            Create<span className="text-primary">and</span>Color
+            Create<span className="text-primary"> & </span>Color
           </h1>
           <Link href="/gallery" className="flex items-center gap-1 text-foreground/70 hover:text-foreground">
             <Images className="w-5 h-5" />

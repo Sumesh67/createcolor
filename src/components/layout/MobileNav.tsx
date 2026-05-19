@@ -2,16 +2,16 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, Palette, Image, User, BookOpen } from "lucide-react";
+import { Home, Wand2, Image, Settings, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 const NAV_ITEMS = [
   { href: "/", icon: Home, label: "Home", emoji: "🏠" },
-  { href: "/create", icon: Palette, label: "Create", emoji: "🎨" },
+  { href: "/create", icon: Wand2, label: "Create", emoji: "🪄" },
   { href: "/storybook", icon: BookOpen, label: "Story", emoji: "📖" },
   { href: "/gallery", icon: Image, label: "Gallery", emoji: "🖼️" },
-  { href: "/parent", icon: User, label: "Profile", emoji: "👤" },
+  { href: "/parent", icon: Settings, label: "Parents", emoji: "⚙️" },
 ];
 
 export function MobileNav() {

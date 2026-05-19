@@ -177,6 +177,74 @@ export async function checkAndDeductStorybook(userId: string): Promise<EnergySta
 }
 
 /**
+ * Unified Magic Sparks system — shared pool for Magic Lens + Storybook (2/day)
+ */
+export async function checkAndConsumeSpark(userId: string): Promise<EnergyStatus> {
+  await connectDB();
+
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  // Admins have unlimited sparks
+  if (user.role === 'ADMIN') {
+    console.log(`[Sparks] Admin user ${userId} — no limit applied`);
+    return { success: true, remaining: 99, resetAt: undefined };
+  }
+
+  if (isNewDay(user.lastSparkReset ?? new Date(0))) {
+    console.log(`[Sparks] Resetting sparks for user ${userId} (new day)`);
+    user.magicSparks = 2;
+    user.lastSparkReset = new Date();
+    await user.save();
+  }
+
+  if ((user.magicSparks ?? 2) <= 0) {
+    const error: EnergyError = {
+      code: 'NO_ENERGY',
+      message: 'Your Magic Wand needs to rest ✨ Come back tomorrow!',
+    };
+    throw error;
+  }
+
+  user.magicSparks = (user.magicSparks ?? 2) - 1;
+  await user.save();
+
+  console.log(`[Sparks] User ${userId} used 1 spark, ${user.magicSparks} remaining`);
+
+  return {
+    success: true,
+    remaining: user.magicSparks,
+    resetAt: getNextResetTime(),
+  };
+}
+
+export async function getSparkStatus(userId: string): Promise<EnergyStatus> {
+  await connectDB();
+
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  // Admins have unlimited sparks
+  if (user.role === 'ADMIN') {
+    return { success: true, remaining: 99, resetAt: undefined };
+  }
+
+  if (isNewDay(user.lastSparkReset ?? new Date(0))) {
+    user.magicSparks = 2;
+    user.lastSparkReset = new Date();
+    await user.save();
+  }
+
+  const remaining = user.magicSparks ?? 2;
+
+  return {
+    success: remaining > 0,
+    remaining,
+    resetAt: getNextResetTime(),
+  };
+}
+
+/**
  * Get the current storybook status for a user without deducting
  */
 export async function getStorybookStatus(userId: string): Promise<EnergyStatus> {

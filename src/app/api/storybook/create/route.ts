@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { analyzeCharacters, writeStory } from '@/lib/ai/gemini-client';
-import { checkAndDeductStorybook, EnergyError } from '@/lib/auth/check-energy';
+import { checkAndConsumeSpark, EnergyError } from '@/lib/auth/check-energy';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import sharp from 'sharp';
 
@@ -90,50 +90,37 @@ async function generatePageIllustration(
  * Post-process image for coloring book style - force pure black & white
  */
 async function postProcessForColoring(buffer: Buffer): Promise<Buffer> {
-  // Step 1: Convert to grayscale and boost contrast
+  // FLUX.1-dev generates near-line-art: white background (~240-255) + dark lines (~0-80).
+  // Use a high threshold so ONLY actual ink lines survive — no filled blobs.
+
+  // Step 1: Grayscale + normalize
   let processed = await sharp(buffer)
     .grayscale()
     .normalize()
-    .linear(1.5, -30) // Increase contrast
     .toBuffer();
 
-  // Step 2: Apply aggressive threshold for pure B&W
-  processed = await sharp(processed)
-    .threshold(150) // Lower threshold = more black lines
-    .toBuffer();
+  // Step 2: High threshold — keeps only genuinely dark ink lines
+  processed = await sharp(processed).threshold(160).toBuffer();
 
-  // Step 3: Clean up with median filter
-  processed = await sharp(processed)
-    .median(1)
-    .toBuffer();
+  // Step 3: Light noise removal
+  processed = await sharp(processed).median(1).toBuffer();
 
-  // Step 4: Thicken lines slightly
-  const dilationKernel = [1, 1, 1, 1, 1, 1, 1, 1, 1];
+  // Step 4: Thicken lines so they're visible when printed
   processed = await sharp(processed)
     .convolve({
       width: 3,
       height: 3,
-      kernel: dilationKernel,
+      kernel: [1, 1, 1, 1, 1, 1, 1, 1, 1],
       scale: 9,
       offset: 0,
     })
-    .threshold(180) // Re-threshold after dilation
+    .threshold(160)
     .toBuffer();
 
-  // Step 5: Final threshold to ensure absolutely pure B&W (no grays)
-  processed = await sharp(processed)
-    .threshold(128)
-    .toBuffer();
-
-  // Step 6: Final output - ensure pure white background and 1-bit B&W
-  const final = await sharp(processed)
+  return sharp(processed)
     .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .grayscale() // Ensure no color channels remain
-    .threshold(128) // Final pure B&W conversion
     .png({ compressionLevel: 9 })
     .toBuffer();
-
-  return final;
 }
 
 export async function POST(request: NextRequest) {
@@ -149,10 +136,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check and deduct storybook usage (2 per day limit)
+    // Check and consume a spark (shared pool: 2/day for magic lens + storybook)
     try {
-      const storybookStatus = await checkAndDeductStorybook(userId);
-      console.log(`[Storybook] Storybook created, ${storybookStatus.remaining} remaining today`);
+      const sparkStatus = await checkAndConsumeSpark(userId);
+      console.log(`[Storybook] Spark consumed, ${sparkStatus.remaining} remaining today`);
     } catch (error) {
       const energyError = error as EnergyError;
       if (energyError.code === 'NO_ENERGY') {
@@ -169,10 +156,11 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { characters, theme, outputStyle = 'outline' } = body as {
+    const { characters, theme, outputStyle = 'outline', customContext } = body as {
       characters: CharacterInput[];
       theme: string;
       outputStyle?: 'outline' | 'colored';
+      customContext?: string;
     };
 
     if (!characters || characters.length === 0) {
@@ -201,49 +189,40 @@ export async function POST(request: NextRequest) {
     // Step 2: Write the story with Gemini
     console.log('[Storybook] Step 2: Writing story...');
     const characterLabels = analyzedCharacters.map((c) => c.label);
-    const story = await writeStory(characterLabels, theme);
+    const story = await writeStory(characterLabels, theme, customContext);
 
     // Step 3: Generate all 5 page illustrations in parallel
     console.log('[Storybook] Step 3: Generating illustrations...');
     const isOutline = outputStyle === 'outline';
 
-    const illustratedPages: StoryPage[] = await Promise.all(
-      story.pages.map(async (page) => {
-        try {
-          console.log(`[Storybook] Generating page ${page.pageNumber}...`);
+    const illustratedPages: StoryPage[] = [];
+    for (let i = 0; i < story.pages.length; i++) {
+      const page = story.pages[i];
+      if (i > 0) await new Promise(r => setTimeout(r, 1500)); // avoid FLUX rate limit
+      try {
+        console.log(`[Storybook] Generating page ${page.pageNumber}...`);
 
-          // Generate illustration
-          const rawImage = await generatePageIllustration(
-            page.illustrationDescription,
-            characterDescriptions,
-            isOutline
-          );
+        const rawImage = await generatePageIllustration(
+          page.illustrationDescription,
+          characterDescriptions,
+          isOutline
+        );
 
-          // Post-process for coloring if needed
-          const processedImage = isOutline
-            ? await postProcessForColoring(rawImage)
-            : rawImage;
+        const processedImage = isOutline
+          ? await postProcessForColoring(rawImage)
+          : rawImage;
 
-          // Upload to storage
-          const imageUrl = isS3Configured()
-            ? await uploadImage(processedImage)
-            : bufferToDataUrl(processedImage);
+        const imageUrl = isS3Configured()
+          ? await uploadImage(processedImage)
+          : bufferToDataUrl(processedImage);
 
-          console.log(`[Storybook] Page ${page.pageNumber} complete`);
-
-          return {
-            ...page,
-            imageUrl,
-          };
-        } catch (error) {
-          console.error(`[Storybook] Failed to generate page ${page.pageNumber}:`, error);
-          return {
-            ...page,
-            imageUrl: undefined,
-          };
-        }
-      })
-    );
+        console.log(`[Storybook] Page ${page.pageNumber} complete`);
+        illustratedPages.push({ ...page, imageUrl });
+      } catch (error) {
+        console.error(`[Storybook] Failed to generate page ${page.pageNumber}:`, error);
+        illustratedPages.push({ ...page, imageUrl: undefined });
+      }
+    }
 
     // Check how many pages succeeded
     const successCount = illustratedPages.filter((p) => p.imageUrl).length;

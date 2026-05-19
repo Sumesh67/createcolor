@@ -16,16 +16,31 @@ interface StoryPage {
   imageUrl?: string;
 }
 
-// Extract base64 data from data URL
 function extractBase64(dataUrl: string): { data: Uint8Array; type: 'png' | 'jpg' } | null {
   const match = dataUrl.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
   if (!match) return null;
-
   const type = match[1] === 'png' ? 'png' : 'jpg';
-  const base64 = match[2];
-  const data = Uint8Array.from(Buffer.from(base64, 'base64'));
-
+  const data = Uint8Array.from(Buffer.from(match[2], 'base64'));
   return { data, type };
+}
+
+function wrapText(text: string, font: Awaited<ReturnType<PDFDocument['embedFont']>>, fontSize: number, maxWidth: number): string[] {
+  const sanitized = text.replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = sanitized.split(' ');
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (font.widthOfTextAtSize(test, fontSize) > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
 }
 
 export async function POST(request: NextRequest) {
@@ -39,292 +54,176 @@ export async function POST(request: NextRequest) {
     };
 
     if (!title || !pages || !Array.isArray(pages)) {
-      return NextResponse.json(
-        { error: 'Invalid request', message: 'Missing required fields' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid request', message: 'Missing required fields' }, { status: 400 });
     }
 
-    console.log(`[Generate PDF] Creating storybook: "${title}" with ${pages.length} pages`);
+    console.log(`[Generate PDF] Creating landscape storybook: "${title}" with ${pages.length} pages`);
 
-    // Create PDF document
     const pdfDoc = await PDFDocument.create();
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Page dimensions (8.5 x 11 inches in points)
-    const pageWidth = 612;
-    const pageHeight = 792;
-    const margin = 50;
+    // Landscape: 11 × 8.5 inches (792 × 612 points)
+    const W = 792;
+    const H = 612;
+    const half = W / 2;   // 396 — fold line
+    const margin = 40;
 
-    // Theme colors
     const themeColors: Record<string, { r: number; g: number; b: number }> = {
-      space: { r: 0.5, g: 0.3, b: 0.7 },
-      ocean: { r: 0.2, g: 0.6, b: 0.8 },
+      space:     { r: 0.5, g: 0.3, b: 0.7 },
+      ocean:     { r: 0.2, g: 0.6, b: 0.8 },
       fairytale: { r: 0.8, g: 0.4, b: 0.6 },
-      dinosaur: { r: 0.4, g: 0.7, b: 0.3 },
-      forest: { r: 0.2, g: 0.7, b: 0.5 },
+      dinosaur:  { r: 0.4, g: 0.7, b: 0.3 },
+      forest:    { r: 0.2, g: 0.7, b: 0.5 },
     };
-    const themeColor = themeColors[theme] || themeColors.space;
+    const tc = themeColors[theme] || themeColors.space;
+    const watermark = 'Created with CreateAndColor.app';
 
-    // --- Cover Page ---
-    const coverPage = pdfDoc.addPage([pageWidth, pageHeight]);
+    // ── Cover Page (landscape, full width) ──────────────────────────────────
+    const cover = pdfDoc.addPage([W, H]);
 
-    // Background color band at top
-    coverPage.drawRectangle({
-      x: 0,
-      y: pageHeight - 200,
-      width: pageWidth,
-      height: 200,
-      color: rgb(themeColor.r, themeColor.g, themeColor.b),
-    });
+    // Theme band across top quarter
+    cover.drawRectangle({ x: 0, y: H - 160, width: W, height: 160, color: rgb(tc.r, tc.g, tc.b) });
 
     // Title
-    const titleFontSize = 36;
-    const titleWidth = helveticaBold.widthOfTextAtSize(title, titleFontSize);
-    coverPage.drawText(title, {
-      x: (pageWidth - titleWidth) / 2,
-      y: pageHeight - 130,
-      size: titleFontSize,
-      font: helveticaBold,
-      color: rgb(1, 1, 1),
-    });
+    const titleSize = 38;
+    const titleText = title.length > 40 ? title.slice(0, 40) + '…' : title;
+    const titleW = helveticaBold.widthOfTextAtSize(titleText, titleSize);
+    cover.drawText(titleText, { x: (W - titleW) / 2, y: H - 110, size: titleSize, font: helveticaBold, color: rgb(1, 1, 1) });
 
-    // "Starring" text
-    const starringText = 'Starring:';
-    coverPage.drawText(starringText, {
-      x: margin,
-      y: pageHeight - 280,
-      size: 18,
-      font: helveticaBold,
-      color: rgb(0.3, 0.3, 0.3),
-    });
-
-    // Character names
-    let yPos = pageHeight - 310;
+    // Starring block (left side)
+    cover.drawText('Starring:', { x: margin, y: H - 220, size: 16, font: helveticaBold, color: rgb(0.3, 0.3, 0.3) });
+    let yPos = H - 248;
     for (const char of characters) {
-      coverPage.drawText(`• ${char.label}`, {
-        x: margin + 20,
-        y: yPos,
-        size: 14,
-        font: helvetica,
-        color: rgb(0.4, 0.4, 0.4),
-      });
-      yPos -= 25;
+      cover.drawText(`• ${char.label}`, { x: margin + 16, y: yPos, size: 13, font: helvetica, color: rgb(0.4, 0.4, 0.4) });
+      yPos -= 22;
     }
 
-    // Created with watermark on cover
-    const watermarkText = 'Created with CreateAndColor.app';
-    const watermarkWidth = helvetica.widthOfTextAtSize(watermarkText, 12);
-    coverPage.drawText(watermarkText, {
-      x: (pageWidth - watermarkWidth) / 2,
-      y: margin,
-      size: 12,
-      font: helvetica,
-      color: rgb(0.6, 0.6, 0.6),
-    });
+    // Theme label (right side)
+    const themeLabel = theme.charAt(0).toUpperCase() + theme.slice(1) + ' Adventure';
+    cover.drawText(themeLabel, { x: W - margin - helveticaBold.widthOfTextAtSize(themeLabel, 14), y: H - 220, size: 14, font: helveticaBold, color: rgb(tc.r, tc.g, tc.b) });
 
-    // --- Story Pages ---
+    // Fold guide hint
+    cover.drawLine({ start: { x: half, y: 30 }, end: { x: half, y: H - 170 }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8), dashArray: [4, 4] });
+    const foldText = '< fold here >';
+    const foldW = helvetica.widthOfTextAtSize(foldText, 8);
+    cover.drawText(foldText, { x: half - foldW / 2, y: 18, size: 8, font: helvetica, color: rgb(0.7, 0.7, 0.7) });
+
+    // Watermark
+    const wmW = helvetica.widthOfTextAtSize(watermark, 10);
+    cover.drawText(watermark, { x: (W - wmW) / 2, y: margin, size: 10, font: helvetica, color: rgb(0.6, 0.6, 0.6) });
+
+    // ── Story Pages (landscape, left = text, right = illustration) ──────────
     for (const page of pages) {
-      const storyPage = pdfDoc.addPage([pageWidth, pageHeight]);
+      const p = pdfDoc.addPage([W, H]);
 
-      // Page number header
-      const pageNumText = `Page ${page.pageNumber}`;
-      storyPage.drawText(pageNumText, {
-        x: pageWidth - margin - helvetica.widthOfTextAtSize(pageNumText, 10),
-        y: pageHeight - 30,
-        size: 10,
-        font: helvetica,
-        color: rgb(0.6, 0.6, 0.6),
-      });
+      // Vertical fold divider
+      p.drawLine({ start: { x: half, y: 20 }, end: { x: half, y: H - 20 }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
 
-      // Image area (if available as base64)
-      let textStartY = pageHeight - margin;
+      // ── LEFT HALF: story text ──
+      const textAreaW = half - 2 * margin;
+      const fontSize = 18;
+      const lineHeight = 28;
 
-      if (page.imageUrl?.startsWith('data:image')) {
-        try {
-          const imageData = extractBase64(page.imageUrl);
-          if (imageData) {
-            let image = null;
-            // Try JPG first (most common from AI), then PNG
-            try {
-              image = await pdfDoc.embedJpg(imageData.data);
-            } catch {
-              try {
-                image = await pdfDoc.embedPng(imageData.data);
-              } catch {
-                console.log(`[Generate PDF] Could not embed image for page ${page.pageNumber}`);
-              }
-            }
+      const lines = wrapText(page.storyText, helvetica, fontSize, textAreaW);
+      const blockHeight = lines.length * lineHeight;
+      const textStartY = Math.floor((H + blockHeight) / 2) - lineHeight; // vertically centred
 
-            if (image) {
-              const imgWidth = pageWidth - 2 * margin;
-              const imgHeight = (imgWidth * image.height) / image.width;
-              const maxImgHeight = 350;
-              const finalHeight = Math.min(imgHeight, maxImgHeight);
-              const finalWidth = (finalHeight * image.width) / image.height;
-
-              storyPage.drawImage(image, {
-                x: (pageWidth - finalWidth) / 2,
-                y: pageHeight - margin - finalHeight,
-                width: finalWidth,
-                height: finalHeight,
-              });
-
-              textStartY = pageHeight - margin - finalHeight - 20;
-              console.log(`[Generate PDF] Embedded image for page ${page.pageNumber}`);
-            }
-          }
-        } catch (imgError) {
-          console.error(`[Generate PDF] Error embedding image for page ${page.pageNumber}:`, imgError);
-          // Continue without image
-          textStartY = pageHeight - margin - 50;
-        }
-      }
-
-      if (!page.imageUrl?.startsWith('data:image') || textStartY === pageHeight - margin) {
-        // No image - add decorative page number
-        storyPage.drawCircle({
-          x: pageWidth / 2,
-          y: pageHeight - 100,
-          size: 40,
-          color: rgb(themeColor.r * 0.3, themeColor.g * 0.3, themeColor.b * 0.3),
-          opacity: 0.1,
-        });
-
-        const pageNumBig = String(page.pageNumber);
-        const pageNumBigWidth = helveticaBold.widthOfTextAtSize(pageNumBig, 32);
-        storyPage.drawText(pageNumBig, {
-          x: (pageWidth - pageNumBigWidth) / 2,
-          y: pageHeight - 115,
-          size: 32,
-          font: helveticaBold,
-          color: rgb(themeColor.r, themeColor.g, themeColor.b),
-        });
-
-        textStartY = pageHeight - 180;
-      }
-
-      // Story text - word wrap
-      const maxTextWidth = pageWidth - 2 * margin;
-      const fontSize = 16;
-      const lineHeight = 24;
-      // Sanitize text: remove newlines and extra whitespace (WinAnsi encoding doesn't support them)
-      const sanitizedText = page.storyText.replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
-      const words = sanitizedText.split(' ');
-      let currentLine = '';
-      let currentY = textStartY - 20;
-
-      for (const word of words) {
-        const testLine = currentLine ? `${currentLine} ${word}` : word;
-        const testWidth = helvetica.widthOfTextAtSize(testLine, fontSize);
-
-        if (testWidth > maxTextWidth && currentLine) {
-          storyPage.drawText(currentLine, {
-            x: margin,
-            y: currentY,
-            size: fontSize,
-            font: helvetica,
-            color: rgb(0.2, 0.2, 0.2),
-          });
-          currentLine = word;
-          currentY -= lineHeight;
-        } else {
-          currentLine = testLine;
-        }
-      }
-
-      // Draw remaining text
-      if (currentLine) {
-        storyPage.drawText(currentLine, {
+      lines.forEach((line, i) => {
+        p.drawText(line, {
           x: margin,
-          y: currentY,
+          y: textStartY - i * lineHeight,
           size: fontSize,
           font: helvetica,
-          color: rgb(0.2, 0.2, 0.2),
+          color: rgb(0.15, 0.15, 0.15),
         });
-      }
-
-      // Footer watermark
-      storyPage.drawText(watermarkText, {
-        x: (pageWidth - watermarkWidth) / 2,
-        y: 30,
-        size: 10,
-        font: helvetica,
-        color: rgb(0.7, 0.7, 0.7),
       });
+
+      // Page number (bottom-left)
+      p.drawText(`${page.pageNumber}`, {
+        x: margin,
+        y: margin,
+        size: 11,
+        font: helveticaBold,
+        color: rgb(tc.r, tc.g, tc.b),
+      });
+
+      // ── RIGHT HALF: illustration ──
+      const imgX = half + margin / 2;
+      const imgW = half - margin;
+      const imgH = H - 2 * margin;
+
+      if (page.imageUrl) {
+        const src = page.imageUrl.startsWith('data:image') ? page.imageUrl : null;
+        if (src) {
+          try {
+            const imgData = extractBase64(src);
+            if (imgData) {
+              let img = null;
+              try { img = await pdfDoc.embedJpg(imgData.data); } catch { /* try png */ }
+              if (!img) { try { img = await pdfDoc.embedPng(imgData.data); } catch { /* skip */ } }
+
+              if (img) {
+                // Fit image maintaining aspect ratio
+                const scale = Math.min(imgW / img.width, imgH / img.height);
+                const drawW = img.width * scale;
+                const drawH = img.height * scale;
+                const drawX = imgX + (imgW - drawW) / 2;
+                const drawY = margin + (imgH - drawH) / 2;
+                p.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
+              }
+            }
+          } catch (e) {
+            console.error(`[Generate PDF] Image embed failed for page ${page.pageNumber}:`, e);
+          }
+        } else {
+          // S3 URL — draw placeholder circle with page number
+          p.drawCircle({ x: imgX + imgW / 2, y: H / 2, size: 60, color: rgb(tc.r, tc.g, tc.b), opacity: 0.15 });
+          const pn = String(page.pageNumber);
+          p.drawText(pn, { x: imgX + imgW / 2 - helveticaBold.widthOfTextAtSize(pn, 36) / 2, y: H / 2 - 18, size: 36, font: helveticaBold, color: rgb(tc.r, tc.g, tc.b) });
+        }
+      }
     }
 
-    // --- Back Cover ---
-    const backCover = pdfDoc.addPage([pageWidth, pageHeight]);
+    // ── Back Cover ──────────────────────────────────────────────────────────
+    const back = pdfDoc.addPage([W, H]);
 
-    // "The End" text
     const endText = 'The End';
-    const endTextWidth = helveticaBold.widthOfTextAtSize(endText, 48);
-    backCover.drawText(endText, {
-      x: (pageWidth - endTextWidth) / 2,
-      y: pageHeight / 2 + 50,
-      size: 48,
+    const endSize = 52;
+    back.drawText(endText, {
+      x: (W - helveticaBold.widthOfTextAtSize(endText, endSize)) / 2,
+      y: H / 2 + 20,
+      size: endSize,
       font: helveticaBold,
-      color: rgb(themeColor.r, themeColor.g, themeColor.b),
+      color: rgb(tc.r, tc.g, tc.b),
     });
 
-    // Draw decorative circles instead of heart (simpler, works with PDF)
-    const decorY = pageHeight / 2 - 50;
-    backCover.drawCircle({
-      x: pageWidth / 2 - 40,
-      y: decorY,
-      size: 25,
-      color: rgb(0.9, 0.3, 0.4),
-    });
-    backCover.drawCircle({
-      x: pageWidth / 2,
-      y: decorY,
-      size: 30,
-      color: rgb(themeColor.r, themeColor.g, themeColor.b),
-    });
-    backCover.drawCircle({
-      x: pageWidth / 2 + 40,
-      y: decorY,
-      size: 25,
-      color: rgb(0.9, 0.3, 0.4),
+    // Three decorative dots
+    [-50, 0, 50].forEach((offset, i) => {
+      back.drawCircle({ x: W / 2 + offset, y: H / 2 - 40, size: i === 1 ? 14 : 10, color: rgb(tc.r, tc.g, tc.b), opacity: i === 1 ? 1 : 0.5 });
     });
 
-    // Final watermark
-    backCover.drawText('Made with love at CreateAndColor.app', {
-      x: (pageWidth - helvetica.widthOfTextAtSize('Made with love at CreateAndColor.app', 14)) / 2,
+    back.drawText('Made with love at CreateAndColor.app', {
+      x: (W - helvetica.widthOfTextAtSize('Made with love at CreateAndColor.app', 13)) / 2,
       y: margin,
-      size: 14,
+      size: 13,
       font: helvetica,
       color: rgb(0.5, 0.5, 0.5),
     });
 
-    // Save PDF
+    // Save
     const pdfBytes = await pdfDoc.save();
     const pdfBuffer = Buffer.from(pdfBytes);
+    console.log(`[Generate PDF] Landscape PDF: ${pdfBuffer.length} bytes`);
 
-    console.log(`[Generate PDF] Generated PDF: ${pdfBuffer.length} bytes`);
+    const pdfUrl = isS3Configured()
+      ? await uploadPDF(pdfBuffer)
+      : bufferToDataUrl(pdfBuffer, 'application/pdf');
 
-    // Upload or encode
-    let pdfUrl: string;
-    if (isS3Configured()) {
-      pdfUrl = await uploadPDF(pdfBuffer);
-    } else {
-      pdfUrl = bufferToDataUrl(pdfBuffer, 'application/pdf');
-    }
-
-    return NextResponse.json({
-      success: true,
-      pdfUrl,
-    });
+    return NextResponse.json({ success: true, pdfUrl });
   } catch (error) {
-    console.error('[Generate PDF] Error:', error);
-    return NextResponse.json(
-      {
-        error: 'PDF generation failed',
-        message: 'Could not create the PDF. Please try again.',
-      },
-      { status: 500 }
-    );
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[Generate PDF] Error:', msg);
+    return NextResponse.json({ error: 'PDF generation failed', message: msg }, { status: 500 });
   }
 }

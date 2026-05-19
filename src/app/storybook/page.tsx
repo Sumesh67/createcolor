@@ -38,7 +38,7 @@ interface GeneratedStorybook {
   pdfUrl?: string;
 }
 
-type Theme = "space" | "ocean" | "fairytale" | "dinosaur" | "forest";
+type Theme = "space" | "ocean" | "fairytale" | "dinosaur" | "forest" | "custom";
 type OutputStyle = "outline" | "colored";
 
 const THEMES: Array<{ id: Theme; emoji: string; label: string; color: string }> = [
@@ -47,6 +47,7 @@ const THEMES: Array<{ id: Theme; emoji: string; label: string; color: string }> 
   { id: "fairytale", emoji: "🏰", label: "Fairy Tale Kingdom", color: "bg-pink-500" },
   { id: "dinosaur", emoji: "🦕", label: "Dinosaur Land", color: "bg-green-500" },
   { id: "forest", emoji: "🌈", label: "Magical Forest", color: "bg-emerald-500" },
+  { id: "custom", emoji: "✏️", label: "My Own Adventure", color: "bg-orange-500" },
 ];
 
 const LOADING_STEPS = [
@@ -77,6 +78,8 @@ export default function StorybookPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [generatedStorybook, setGeneratedStorybook] = useState<GeneratedStorybook | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [customContext, setCustomContext] = useState("");
+  const [customTheme, setCustomTheme] = useState("");
   const [energy, setEnergy] = useState<{ remaining: number; resetAt?: string } | null>(null);
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
@@ -95,7 +98,7 @@ export default function StorybookPage() {
   }, [session]);
 
   const uploadedCount = characters.filter((c) => c.file !== null).length;
-  const canGenerate = uploadedCount >= 1 && characters.every((c) => !c.file || c.label.trim());
+  const canGenerate = uploadedCount >= 1 && characters.every((c) => !c.file || c.label.trim()) && (selectedTheme !== "custom" || customTheme.trim().length > 0);
 
   const handleFileSelect = useCallback((slotId: string, file: File) => {
     const reader = new FileReader();
@@ -176,8 +179,9 @@ export default function StorybookPage() {
             label: c.label.trim(),
             imageBase64: c.preview?.split(",")[1],
           })),
-          theme: selectedTheme,
+          theme: selectedTheme === "custom" ? (customTheme.trim() || "adventure") : selectedTheme,
           outputStyle,
+          customContext: customContext.trim() || undefined,
         }),
       });
 
@@ -211,7 +215,7 @@ export default function StorybookPage() {
             title: data.title,
             characters: data.characters,
             pages: data.pages,
-            theme: selectedTheme,
+            theme: selectedTheme === "custom" ? (customTheme.trim() || "adventure") : selectedTheme,
           }),
         });
 
@@ -247,6 +251,8 @@ export default function StorybookPage() {
     setGeneratedStorybook(null);
     setCharacters([createEmptySlot(), createEmptySlot(), createEmptySlot()]);
     setChildName("");
+    setCustomContext("");
+    setCustomTheme("");
     setSelectedTheme("space");
     setOutputStyle("colored");
   };
@@ -436,6 +442,19 @@ export default function StorybookPage() {
                   </button>
                 ))}
               </div>
+
+              {selectedTheme === "custom" && (
+                <div className="mt-4">
+                  <input
+                    type="text"
+                    value={customTheme}
+                    onChange={(e) => setCustomTheme(e.target.value)}
+                    placeholder="e.g., Pirate treasure hunt, Superhero school, Underwater city..."
+                    maxLength={60}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-orange-300 focus:border-orange-500 focus:outline-none font-body"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Output Style Selector */}
@@ -465,12 +484,22 @@ export default function StorybookPage() {
               </div>
             </div>
 
+            {/* Magic Details */}
+            <div className="mb-8">
+              <label className="block font-display text-sm font-semibold mb-2">
+                ✨ Magic Details (Optional)
+              </label>
+              <textarea
+                value={customContext}
+                onChange={(e) => setCustomContext(e.target.value)}
+                placeholder="e.g., Make it about sharing toys, include her dog Buster, or add a magic sword."
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none font-body resize-none"
+              />
+            </div>
+
             {/* Generate Button */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-            >
+            <div>
               <Button
                 variant="primary"
                 size="xl"
@@ -509,7 +538,7 @@ export default function StorybookPage() {
                   Upload at least 1 character to get started
                 </p>
               )}
-            </motion.div>
+            </div>
           </>
         )}
       </main>

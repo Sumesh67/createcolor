@@ -94,9 +94,9 @@ export async function analyzePhoto(imageBase64: string): Promise<string> {
   const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
   const prompt = `You are a professional children's coloring book art director.
-Describe the main subject of this photo in 20 words for an illustrator.
-Focus on: character type, pose, key features, expression.
-Ignore the background completely. Keep it G-rated and simple.`;
+Describe this photo in 25 words for an illustrator.
+Focus on: subject, pose, clothing, expression, and key background elements.
+Keep it G-rated and simple.`;
 
   const result = await withRetry(async () => {
     return model.generateContent([
@@ -126,7 +126,8 @@ Ignore the background completely. Keep it G-rated and simple.`;
  */
 export async function writeStory(
   characters: string[],
-  theme: string
+  theme: string,
+  customContext?: string
 ): Promise<StoryResponse> {
   if (!process.env.GEMINI_API_KEY) {
     console.warn('[Gemini] No API key, using fallback story');
@@ -137,12 +138,16 @@ export async function writeStory(
 
   const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
+  const contextBlock = customContext?.trim()
+    ? `Special Parent Request: ${customContext.trim()}. You MUST weave this specific detail, lesson, or character into the story naturally.\n`
+    : '';
+
   const prompt = `Write a 5-page rhyming children's story for ages 3-10.
 Characters: ${characters.join(', ')}. Theme: ${theme}.
-Rules:
+${contextBlock}Rules:
 - Each page has exactly 2 rhyming sentences (AABB style).
 - Each page has a visual scene description for a coloring page illustrator (max 25 words).
-- Happy tone, simple vocabulary, G-rated.
+- Happy tone, simple vocabulary (Kindergarten sight words), G-rated.
 Return ONLY valid JSON (no markdown, no code blocks):
 { "pages": [{ "pageNumber": 1, "storyText": "...", "illustrationDescription": "..." }] }`;
 

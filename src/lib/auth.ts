@@ -88,6 +88,11 @@ export function getAuthOptions(): NextAuthOptions {
               token.role = existingUser.role;
             }
           }
+        } else if (token.id) {
+          // Refresh role from DB on token refresh so role changes take effect without re-login
+          await connectDB();
+          const dbUser = await User.findById(token.id).select('role').lean().exec();
+          if (dbUser) token.role = (dbUser as { role: string }).role;
         }
         return token;
       },

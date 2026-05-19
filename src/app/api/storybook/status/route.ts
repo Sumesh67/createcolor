@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getStorybookStatus } from '@/lib/auth/check-energy';
+import { getSparkStatus } from '@/lib/auth/check-energy';
 
 interface SessionUser {
   id?: string;
@@ -19,7 +19,7 @@ export async function GET() {
       );
     }
 
-    const status = await getStorybookStatus(userId);
+    const status = await getSparkStatus(userId);
 
     return NextResponse.json({
       remaining: status.remaining,

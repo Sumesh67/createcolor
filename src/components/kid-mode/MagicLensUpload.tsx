@@ -70,6 +70,25 @@ export function MagicLensUpload({
     reader.readAsDataURL(file);
   }, []);
 
+  const compressImage = useCallback(
+    (dataUrl: string, maxDimension = 1024, quality = 0.75): Promise<string> => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.src = dataUrl;
+      });
+    },
+    []
+  );
+
   const handleConvert = useCallback(async () => {
     if (!preview || !fileInputRef.current?.files?.[0]) return;
 
@@ -86,13 +105,15 @@ export function MagicLensUpload({
       let data;
 
       if (processingMode === "magic") {
+        // Compress before sending to stay within Vercel's 4.5MB payload limit
+        const compressed = await compressImage(preview);
+        const imageBase64 = compressed.split(",")[1];
+
         // Use Gemini + FLUX.1-dev pipeline (requires auth + energy)
         const response = await fetch("/api/magic-lens", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            imageBase64: preview.split(",")[1],
-          }),
+          body: JSON.stringify({ imageBase64 }),
         });
 
         data = await response.json();
@@ -140,7 +161,7 @@ export function MagicLensUpload({
     } finally {
       setIsProcessing(false);
     }
-  }, [preview, detailLevel, outputStyle, processingMode, onImageConverted, setIsProcessing, session, energy]);
+  }, [preview, detailLevel, outputStyle, processingMode, onImageConverted, setIsProcessing, session, energy, compressImage]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -204,7 +225,9 @@ export function MagicLensUpload({
             <Battery className={`w-5 h-5 ${energy.remaining > 0 ? "text-purple-500" : "text-orange-500"}`} />
             <span className="font-display text-sm font-semibold">
               {energy.remaining > 0 ? (
-                <>Magic Wand: {energy.remaining} use{energy.remaining !== 1 ? "s" : ""} left today</>
+                energy.remaining === Infinity
+                  ? <>Magic Wand: ∞ uses (Admin)</>
+                  : <>Magic Wand: {energy.remaining} use{energy.remaining !== 1 ? "s" : ""} left today</>
               ) : (
                 <>Magic Wand resting until tomorrow</>
               )}
@@ -433,7 +456,7 @@ export function MagicLensUpload({
                 </div>
                 {session?.user && energy !== null && (
                   <div className="font-body text-xs text-purple-500 mt-1">
-                    {energy.remaining > 0 ? `${energy.remaining} use${energy.remaining !== 1 ? "s" : ""} left` : "Resets tomorrow"}
+                    {energy.remaining === Infinity ? "∞ (Admin)" : energy.remaining > 0 ? `${energy.remaining} use${energy.remaining !== 1 ? "s" : ""} left` : "Resets tomorrow"}
                   </div>
                 )}
               </button>

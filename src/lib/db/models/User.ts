@@ -6,11 +6,13 @@ export interface IUser extends Document {
   name?: string;
   image?: string;
   password?: string;
-  role: 'CHILD' | 'PARENT';
+  role: 'CHILD' | 'PARENT' | 'ADMIN';
   magicEnergy: number;
   lastEnergyReset: Date;
   storybookCount: number;
   lastStorybookReset: Date;
+  magicSparks: number;
+  lastSparkReset: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,7 +39,7 @@ const UserSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ['CHILD', 'PARENT'],
+      enum: ['CHILD', 'PARENT', 'ADMIN'],
       default: 'PARENT',
     },
     magicEnergy: {
@@ -53,6 +55,14 @@ const UserSchema = new Schema<IUser>(
       default: 0,
     },
     lastStorybookReset: {
+      type: Date,
+      default: Date.now,
+    },
+    magicSparks: {
+      type: Number,
+      default: 2,
+    },
+    lastSparkReset: {
       type: Date,
       default: Date.now,
     },

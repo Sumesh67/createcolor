@@ -154,9 +154,8 @@ function SlotCarousel({
   selectedIndex,
   isSpinning,
   onSpin,
-  onSelect: _onSelect,
+  onSelect,
 }: SlotCarouselProps) {
-  const _visibleCount = 3;
   const getVisibleItems = () => {
     const result = [];
     for (let i = -1; i <= 1; i++) {
@@ -180,6 +179,17 @@ function SlotCarousel({
         )}
         onClick={onSpin}
         whileTap={{ scale: 0.98 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={0.1}
+        onDragEnd={(_, info) => {
+          if (isSpinning) return;
+          if (info.offset.y < -30) {
+            onSelect((selectedIndex + 1) % items.length);
+          } else if (info.offset.y > 30) {
+            onSelect((selectedIndex - 1 + items.length) % items.length);
+          }
+        }}
       >
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <AnimatePresence mode="popLayout">
@@ -213,9 +223,9 @@ function SlotCarousel({
           </AnimatePresence>
         </div>
 
-        {/* Tap hint */}
+        {/* Hint */}
         <div className="absolute bottom-1 left-0 right-0 text-center">
-          <span className="text-[10px] text-gray-400 font-body">Tap to spin</span>
+          <span className="text-[10px] text-gray-400 font-body">Tap or swipe</span>
         </div>
       </motion.div>
     </div>
