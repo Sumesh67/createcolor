@@ -199,42 +199,49 @@ export default function HomePage() {
                 title: "Kid-Friendly Creator",
                 description: "Simple slot machine interface perfect for little fingers",
                 color: "text-primary",
+                href: "/create",
               },
               {
                 icon: Mic,
                 title: "Voice Prompts",
                 description: "Just say what you want to draw - no typing needed!",
                 color: "text-secondary",
+                href: "/create",
               },
               {
                 icon: Printer,
                 title: "Instant Print",
                 description: "Download PDFs or print directly to your printer",
                 color: "text-purple",
+                href: "/create",
               },
               {
                 icon: Package,
                 title: "Party Packs",
-                description: "Generate 20 themed pages at once for birthday parties",
+                description: "Generate 20 themed coloring pages as a PDF — perfect for birthday parties",
                 color: "text-accent",
+                href: "/parent",
               },
               {
                 icon: Upload,
                 title: "Photo to Coloring",
                 description: "Turn any photo into a coloring page outline",
                 color: "text-primary",
+                href: "/upload",
               },
               {
                 icon: Users,
                 title: "Community Gallery",
                 description: "Share and discover coloring pages from other kids",
                 color: "text-secondary",
+                href: "/community",
               },
               {
                 icon: BookOpen,
                 title: "Storybook Creator",
                 description: "Turn family photos into personalized AI storybooks!",
                 color: "text-purple",
+                href: "/storybook",
               },
             ].map((feature, i) => (
               <motion.div
@@ -244,15 +251,90 @@ export default function HomePage() {
                 transition={{ delay: i * 0.05 }}
                 viewport={{ once: true }}
               >
-                <Card hover className="h-full">
-                  <CardContent className="pt-6">
-                    <feature.icon className={`w-10 h-10 ${feature.color} mb-4`} />
-                    <h3 className="font-display text-lg font-bold mb-2">{feature.title}</h3>
-                    <p className="font-body text-foreground/70 text-sm">{feature.description}</p>
-                  </CardContent>
-                </Card>
+                <Link href={feature.href}>
+                  <Card hover className="h-full cursor-pointer">
+                    <CardContent className="pt-6">
+                      <feature.icon className={`w-10 h-10 ${feature.color} mb-4`} />
+                      <h3 className="font-display text-lg font-bold mb-2">{feature.title}</h3>
+                      <p className="font-body text-foreground/70 text-sm">{feature.description}</p>
+                    </CardContent>
+                  </Card>
+                </Link>
               </motion.div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Party Pack Feature Section */}
+      <section className="py-16 px-4 bg-gradient-to-br from-amber-50 to-orange-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            {/* Left: copy */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+            >
+              <div className="inline-flex items-center gap-2 bg-orange-100 text-orange-700 text-sm font-semibold px-3 py-1 rounded-full mb-4">
+                <Package className="w-4 h-4" />
+                Perfect for Parties
+              </div>
+              <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-4">
+                Party Pack — <span className="text-orange-500">20 coloring pages</span> in one click 🎉
+              </h2>
+              <p className="font-body text-foreground/70 text-lg mb-6">
+                Planning a birthday? Generate a full themed coloring book instantly. Pick a theme, add the child&apos;s name, and download a print-ready PDF — no design skills needed.
+              </p>
+              <ul className="space-y-3 mb-8">
+                {[
+                  { emoji: "🎨", text: "Choose any theme — dinosaurs, unicorns, space, superheroes & more" },
+                  { emoji: "📄", text: "Up to 20 unique coloring pages, all different scenes" },
+                  { emoji: "👶", text: "Personalised cover page with the child's name" },
+                  { emoji: "🖨️", text: "Download as a single print-ready PDF" },
+                ].map((item) => (
+                  <li key={item.text} className="flex items-start gap-3 font-body text-foreground/80">
+                    <span className="text-xl shrink-0">{item.emoji}</span>
+                    <span>{item.text}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/parent">
+                <Button variant="primary" size="xl" className="bg-orange-500 hover:bg-orange-600 border-none">
+                  <Package className="w-5 h-5 mr-2" />
+                  Create a Party Pack
+                </Button>
+              </Link>
+            </motion.div>
+
+            {/* Right: visual */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="relative flex justify-center"
+            >
+              {/* Stacked pages effect */}
+              <div className="relative w-56 h-72 sm:w-64 sm:h-80">
+                {[3, 2, 1, 0].map((offset) => (
+                  <div
+                    key={offset}
+                    className="absolute inset-0 bg-white rounded-2xl shadow-card border border-gray-100 flex flex-col items-center justify-center gap-3"
+                    style={{ transform: `rotate(${(offset - 1.5) * 3}deg) translateY(${offset * -4}px)` }}
+                  >
+                    <span className="text-5xl">
+                      {["🦕", "🚀", "🦄", "🎪"][offset]}
+                    </span>
+                    <div className="text-xs text-gray-400 font-body">Coloring page {offset + 1}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Badge */}
+              <div className="absolute -top-4 -right-4 w-16 h-16 bg-orange-500 text-white rounded-full flex flex-col items-center justify-center shadow-lg">
+                <span className="text-xl font-bold leading-none">20</span>
+                <span className="text-[9px] font-semibold leading-none">pages</span>
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>

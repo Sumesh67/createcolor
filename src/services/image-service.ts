@@ -21,7 +21,7 @@ const IMAGE_CONFIG = {
   model: 'black-forest-labs/FLUX.1-schnell',
   width: 1024,
   height: 1024,
-  steps: 4, // FLUX.1-schnell is optimized for 4 steps
+  steps: 8,
 };
 
 /**
@@ -52,24 +52,35 @@ export async function generateColoringPage(
     console.log(`[ImageService] Generating with FLUX.1-schnell`);
     console.log(`[ImageService] Core subject: ${coreSubject.substring(0, 50)}...`);
 
-    // Call Together AI API directly
-    const response = await fetch('https://api.together.xyz/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: IMAGE_CONFIG.model,
-        prompt: optimizedPrompt,
-        negative_prompt: DREAMSHAPER_NEGATIVE_PROMPT,
-        width: IMAGE_CONFIG.width,
-        height: IMAGE_CONFIG.height,
-        steps: IMAGE_CONFIG.steps,
-        n: 1,
-        response_format: 'b64_json',
-      }),
-    });
+    // Retry up to 3 times with exponential backoff on rate limit
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      response = await fetch('https://api.together.xyz/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: IMAGE_CONFIG.model,
+          prompt: optimizedPrompt,
+          negative_prompt: DREAMSHAPER_NEGATIVE_PROMPT,
+          width: IMAGE_CONFIG.width,
+          height: IMAGE_CONFIG.height,
+          steps: IMAGE_CONFIG.steps,
+          n: 1,
+          response_format: 'b64_json',
+        }),
+      });
+
+      if (response.status !== 429) break;
+
+      const retryDelay = 3000 * Math.pow(2, attempt); // 3s, 6s, 12s
+      console.log(`[ImageService] Rate limited, retrying in ${retryDelay / 1000}s (attempt ${attempt + 1}/3)`);
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    }
+
+    if (!response) return { success: false, error: 'No response from API' };
 
     if (!response.ok) {
       const errorText = await response.text();

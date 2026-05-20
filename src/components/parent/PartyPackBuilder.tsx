@@ -57,9 +57,11 @@ export function PartyPackBuilder({
   };
 
   const handleDownload = () => {
-    if (result?.pdfUrl) {
-      window.open(result.pdfUrl, "_blank");
-    }
+    if (!result?.pdfUrl) return;
+    const a = document.createElement("a");
+    a.href = result.pdfUrl;
+    a.download = `party-pack.pdf`;
+    a.click();
   };
 
   return (

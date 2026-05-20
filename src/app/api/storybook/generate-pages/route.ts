@@ -21,7 +21,7 @@ const IMAGE_CONFIG = {
   model: 'black-forest-labs/FLUX.1-schnell',
   width: 1024,
   height: 768,
-  steps: 4, // Fast serverless model
+  steps: 8,
 };
 
 /**
@@ -83,8 +83,8 @@ async function generateImage(prompt: string, isOutline: boolean): Promise<string
 
   try {
     const negativePrompt = isOutline
-      ? 'color, colored, colorful, red, blue, green, yellow, orange, purple, pink, shading, shadows, gradients, gray, grey, realistic, photorealistic, messy lines, text, watermark, nudity, gore, scary, 3d render, dark background'
-      : 'text, watermark, nudity, gore, scary, dark, ugly';
+      ? 'color, colored, colorful, red, blue, green, yellow, orange, purple, pink, shading, shadows, gradients, gray, grey, realistic, photorealistic, messy lines, text, words, letters, writing, watermark, nudity, gore, scary, 3d render, dark background, extra heads, duplicate heads, two heads, multiple heads, extra limbs, extra arms, extra legs, deformed, malformed, bad anatomy, fused bodies, merged characters'
+      : 'text, words, letters, writing, watermark, nudity, gore, scary, dark, ugly, extra heads, duplicate heads, two heads, multiple heads, extra limbs, extra arms, extra legs, deformed, malformed, bad anatomy, fused bodies, merged characters';
 
     const response = await fetch('https://api.together.xyz/v1/images/generations', {
       method: 'POST',
@@ -197,14 +197,14 @@ Scene: ${page.illustrationDescription}
 
 ${characterBlock}
 
-Style: BLACK AND WHITE ONLY, thick bold black outlines on pure white background, absolutely no color, no shading, no gray tones, no gradients, simple clean line art, large empty areas to color in, professional coloring book page style, monochrome, ink drawing.`
+Style: BLACK AND WHITE ONLY, thick bold black outlines on pure white background, absolutely no color, no shading, no gray tones, no gradients, simple clean line art, large empty areas to color in, professional coloring book page style, monochrome, ink drawing, no text, no words, correct anatomy, one head per character.`
             : `Children's book illustration:
 
 Scene: ${page.illustrationDescription}
 
 ${characterBlock}
 
-Style: Colorful watercolor, cute friendly characters, soft pastel colors, G-rated.`;
+Style: Colorful watercolor, cute friendly characters, soft pastel colors, G-rated, no text, no words, correct anatomy, one head per character.`;
 
           const imageUrl = await generateImage(illustrationPrompt, isOutline);
 

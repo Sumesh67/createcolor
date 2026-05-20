@@ -9,11 +9,11 @@ const COLORING_BOOK_PREFIX =
 
 // Suffix to enforce black and white outline style
 const COLORING_BOOK_SUFFIX =
-  'thick bold black outlines, pure white background, no coloring, no shading, no gray, high contrast, vector style, G-rated, safe for kids';
+  'thick bold black outlines, pure white background, no coloring, no shading, no gray, high contrast, vector style, G-rated, safe for kids, no text, no words, correct anatomy, one head per character';
 
 // Strict negative prompt to force black and white outlines
 export const DREAMSHAPER_NEGATIVE_PROMPT =
-  'color, shading, gradients, shadows, 3d, photorealistic, gray, blurry, messy lines, text, watermark, nudity, violence, scary, dark, complex backgrounds, realistic, photograph, painting, colored, fills, halftone';
+  'color, shading, gradients, shadows, 3d, photorealistic, gray, blurry, messy lines, text, words, letters, writing, watermark, nudity, violence, scary, dark, complex backgrounds, realistic, photograph, painting, colored, fills, halftone, extra heads, duplicate heads, two heads, multiple heads, extra limbs, extra arms, extra legs, deformed, malformed, disfigured, bad anatomy, fused bodies, merged characters, conjoined';
 
 /**
  * Wraps user input into a professional DreamShaper prompt for coloring pages
