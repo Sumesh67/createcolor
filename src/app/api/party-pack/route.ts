@@ -5,8 +5,22 @@ import { uploadImage, isS3Configured, bufferToDataUrl } from "@/lib/storage/uplo
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rateLimit";
 import { PrintLayout } from "@/types";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { getServerSession } from "next-auth";
+import { authOptions, extractTokenFromRequest, verifyJWT } from "@/lib/auth";
 
 export const maxDuration = 300; // 5 minutes for bulk generation
+
+interface SessionUser { id?: string; }
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
 
 const PAGE_W = 612; // 8.5 in
 const PAGE_H = 792; // 11 in
@@ -106,18 +120,31 @@ async function buildPartyPackPdf(
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting - stricter for party packs
-    const identifier = getRateLimitIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 5, windowMs: 60 * 60 * 1000 });
+    // Hybrid auth: JWT (mobile) or NextAuth session (web)
+    let userId: string | undefined;
+    const token = extractTokenFromRequest(request);
+    if (token) {
+      const decoded = verifyJWT(token);
+      if (decoded) userId = decoded.id;
+    }
+    if (!userId) {
+      const session = await getServerSession(authOptions);
+      userId = (session?.user as SessionUser)?.id;
+    }
+
+    // Rate limit by userId when logged in, else by IP — shared across web + mobile
+    const identifier = userId ?? getRateLimitIdentifier(request);
+    const rateLimit = checkRateLimit(identifier, { maxRequests: 2, windowMs: 24 * 60 * 60 * 1000 });
 
     if (!rateLimit.allowed) {
+      const hoursUntilReset = Math.ceil(rateLimit.resetIn / (60 * 60 * 1000));
       return NextResponse.json(
         {
-          error: "Too many requests",
-          message: "You've generated too many party packs. Please try again later!",
-          resetIn: Math.ceil(rateLimit.resetIn / 60000),
+          error: "Daily limit reached",
+          message: `You've used your 2 free party packs for today! Come back in ${hoursUntilReset} hour${hoursUntilReset === 1 ? "" : "s"}.`,
+          resetIn: rateLimit.resetIn,
         },
-        { status: 429 }
+        { status: 429, headers: corsHeaders }
       );
     }
 
@@ -130,13 +157,13 @@ export async function POST(request: NextRequest) {
     };
 
     if (!theme) {
-      return NextResponse.json({ error: "Theme is required" }, { status: 400 });
+      return NextResponse.json({ error: "Theme is required" }, { status: 400, headers: corsHeaders });
     }
 
     if (count < 1 || count > 20) {
       return NextResponse.json(
         { error: "Count must be between 1 and 20" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -178,7 +205,7 @@ export async function POST(request: NextRequest) {
       theme,
       childName,
       layout,
-    });
+    }, { headers: corsHeaders });
   } catch (error) {
     console.error("Error generating party pack:", error);
     return NextResponse.json(
@@ -186,7 +213,7 @@ export async function POST(request: NextRequest) {
         error: "Generation failed",
         message: "Couldn't generate the party pack. Please try again!",
       },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
