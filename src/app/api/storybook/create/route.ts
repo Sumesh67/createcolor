@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, verifyJWT, extractTokenFromRequest } from '@/lib/auth';
 import { analyzeCharacters, writeStory } from '@/lib/ai/gemini-client';
 import { checkAndConsumeSpark, EnergyError } from '@/lib/auth/check-energy';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
@@ -125,9 +125,17 @@ async function postProcessForColoring(buffer: Buffer): Promise<Buffer> {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    const userId = (session?.user as SessionUser)?.id;
+    // Check authentication — JWT (mobile) or NextAuth session (web)
+    let userId: string | undefined;
+    const token = extractTokenFromRequest(request);
+    if (token) {
+      const decoded = verifyJWT(token);
+      if (decoded) userId = decoded.id;
+    }
+    if (!userId) {
+      const session = await getServerSession(authOptions);
+      userId = (session?.user as SessionUser)?.id;
+    }
 
     if (!userId) {
       return NextResponse.json(

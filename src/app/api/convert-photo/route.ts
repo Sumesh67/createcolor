@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, verifyJWT, extractTokenFromRequest } from '@/lib/auth';
+import { analyzePhoto } from '@/lib/ai/gemini-client';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import { createThumbnail } from '@/lib/image/processImage';
 import { checkDailyLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
@@ -16,14 +17,6 @@ interface TogetherImageResponse {
   data: Array<{
     url?: string;
     b64_json?: string;
-  }>;
-}
-
-interface TogetherChatResponse {
-  choices: Array<{
-    message: {
-      content: string;
-    };
   }>;
 }
 
@@ -55,65 +48,14 @@ async function convertMagicReDraw(
   const base64Image = resized.toString('base64');
   const imageDataUrl = `data:image/jpeg;base64,${base64Image}`;
 
-  console.log(`[MagicReDraw] Step 1: Analyzing photo with Llama 4 Vision...`);
+  console.log(`[MagicReDraw] Step 1: Analyzing photo with Gemini...`);
 
   // ===================
-  // STEP 2: VISION ANALYSIS - Describe the photo in detail
+  // STEP 2: VISION ANALYSIS - Describe the photo using Gemini
   // ===================
-  const visionResponse = await fetch('https://api.together.xyz/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.TOGETHER_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image_url',
-              image_url: { url: imageDataUrl },
-            },
-            {
-              type: 'text',
-              text: `You are a professional artist assistant. Describe this photo in 150+ words with PHOTOGRAPHIC PRECISION so another artist can draw an IDENTICAL copy.
+  const description = await analyzePhoto(base64Image);
 
-REQUIRED DETAILS:
-1. SUBJECT TYPE: Human/animal/object, age range, gender if applicable
-2. FACE: Expression, eye direction, mouth (smiling/neutral), eyebrows, any facial hair, glasses
-3. BODY POSE: Exact position - standing/sitting/lying, which way facing, head angle (tilted left/right, looking up/down), shoulder position, EACH arm position (bent/straight, where hands are), EACH leg position
-4. CLOTHING: Every garment from top to bottom - shirt type (t-shirt/button-up/sweater), neckline (v-neck/crew/collar), sleeve length, pants/skirt type, shoes, ALL patterns and colors
-5. HAIR: Length (short/medium/long), style (straight/curly/wavy), parting (left/middle/right), tied up or down, color
-6. ACCESSORIES: Jewelry, watch, hat, bag, belt, glasses - describe each
-7. HANDS: What are they doing? Holding anything? Position?
-8. SPATIAL: Where in frame (center/left/right), how much of body visible (full/waist-up/face only)
-
-Be EXTREMELY specific. Do NOT use vague words like "casual" or "nice" - describe exactly what you see.`,
-            },
-          ],
-        },
-      ],
-      max_tokens: 500,
-      temperature: 0.1,
-    }),
-  });
-
-  if (!visionResponse.ok) {
-    const errorText = await visionResponse.text();
-    console.error('[MagicReDraw] Vision API error:', errorText);
-    throw new Error(`Vision API error: ${visionResponse.status}`);
-  }
-
-  const visionData = (await visionResponse.json()) as TogetherChatResponse;
-  const description = visionData.choices?.[0]?.message?.content?.trim();
-
-  if (!description) {
-    throw new Error('No description from Vision model');
-  }
-
-  console.log(`[MagicReDraw] Vision description: "${description}"`);
+  console.log(`[MagicReDraw] Gemini description: "${description}"`);
 
   // ===================
   // STEP 3: GENERATE COLORING PAGE (Text-to-Image)
@@ -405,9 +347,17 @@ async function convertColored(buffer: Buffer): Promise<Buffer> {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    const userId = (session?.user as SessionUser)?.id;
+    // Check authentication — JWT (mobile) or NextAuth session (web)
+    let userId: string | undefined;
+    const token = extractTokenFromRequest(request);
+    if (token) {
+      const decoded = verifyJWT(token);
+      if (decoded) userId = decoded.id;
+    }
+    if (!userId) {
+      const session = await getServerSession(authOptions);
+      userId = (session?.user as SessionUser)?.id;
+    }
 
     if (!userId) {
       return NextResponse.json(
