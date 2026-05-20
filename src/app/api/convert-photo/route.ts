@@ -369,7 +369,7 @@ export async function POST(request: NextRequest) {
     const userRole = await getRequestUserRole(request);
     const identifier = getRateLimitIdentifier(request);
     const dailyLimit = userRole === 'ADMIN'
-      ? { allowed: true, remaining: 999, resetIn: 0 }
+      ? { allowed: true, remaining: 999, resetIn: 0, used: 0 }
       : checkDailyLimit(identifier, 20);
 
     if (!dailyLimit.allowed) {

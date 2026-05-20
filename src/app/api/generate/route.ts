@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     const dailyLimit = userId ? 20 : 10;
     const identifier = userId || getRateLimitIdentifier(request);
-    const limitCheck = isAdmin ? { allowed: true, remaining: 999, resetIn: 0 } : checkDailyLimit(identifier, dailyLimit);
+    const limitCheck = isAdmin ? { allowed: true, remaining: 999, resetIn: 0, used: 0 } : checkDailyLimit(identifier, dailyLimit);
 
     if (!limitCheck.allowed) {
       const hoursUntilReset = Math.ceil(limitCheck.resetIn / (60 * 60 * 1000));
