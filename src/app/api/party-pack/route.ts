@@ -6,7 +6,7 @@ import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rateLimit";
 import { PrintLayout } from "@/types";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { getServerSession } from "next-auth";
-import { authOptions, extractTokenFromRequest, verifyJWT } from "@/lib/auth";
+import { authOptions, extractTokenFromRequest, verifyJWT, getRequestUserRole } from "@/lib/auth";
 
 export const maxDuration = 300; // 5 minutes for bulk generation
 
@@ -132,9 +132,14 @@ export async function POST(request: NextRequest) {
       userId = (session?.user as SessionUser)?.id;
     }
 
-    // Rate limit by userId when logged in, else by IP — shared across web + mobile
+    // Admins bypass all rate limits
+    const userRole = await getRequestUserRole(request);
+    const isAdmin = userRole === 'ADMIN';
+
     const identifier = userId ?? getRateLimitIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 2, windowMs: 24 * 60 * 60 * 1000 });
+    const rateLimit = isAdmin
+      ? { allowed: true, remaining: 999, resetIn: 0 }
+      : checkRateLimit(identifier, { maxRequests: 2, windowMs: 24 * 60 * 60 * 1000 });
 
     if (!rateLimit.allowed) {
       const hoursUntilReset = Math.ceil(rateLimit.resetIn / (60 * 60 * 1000));

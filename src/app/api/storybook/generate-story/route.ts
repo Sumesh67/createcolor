@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
+import { getRequestUserRole } from '@/lib/auth';
 
 export const maxDuration = 60;
 
@@ -409,9 +410,11 @@ async function personalizeTitle(
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
+    const userRole = await getRequestUserRole(request);
     const identifier = getRateLimitIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 10, windowMs: 60 * 60 * 1000 });
+    const rateLimit = userRole === 'ADMIN'
+      ? { allowed: true, remaining: 999, resetIn: 0 }
+      : checkRateLimit(identifier, { maxRequests: 10, windowMs: 60 * 60 * 1000 });
 
     if (!rateLimit.allowed) {
       return NextResponse.json(

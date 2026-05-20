@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, getRequestUserRole } from '@/lib/auth';
 import { generateColoringPage } from '@/lib/ai/generateColoringPage';
 import { buildEditPrompt } from '@/lib/ai/promptBuilder';
 import { checkPromptSafety } from '@/lib/ai/safetyFilter';
@@ -21,9 +21,11 @@ interface SessionUser {
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
+    const userRole = await getRequestUserRole(request);
     const identifier = getRateLimitIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 20, windowMs: 60 * 60 * 1000 });
+    const rateLimit = userRole === 'ADMIN'
+      ? { allowed: true, remaining: 999, resetIn: 0 }
+      : checkRateLimit(identifier, { maxRequests: 20, windowMs: 60 * 60 * 1000 });
 
     if (!rateLimit.allowed) {
       return NextResponse.json(

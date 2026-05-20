@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions, extractTokenFromRequest, verifyJWT } from '@/lib/auth';
+import { authOptions, extractTokenFromRequest, verifyJWT, getRequestUserRole } from '@/lib/auth';
 import { generateColoringPage } from '@/lib/ai/generateColoringPage';
 import { buildPromptFromSlots, buildCustomPrompt, getDisplayPrompt } from '@/lib/ai/promptBuilder';
 import { checkPromptSafety } from '@/lib/ai/safetyFilter';
@@ -52,11 +52,13 @@ export async function POST(request: NextRequest) {
       userId = (session?.user as SessionUser)?.id;
     }
 
-    // Rate limiting based on authentication status
-    // Authenticated users: 20/day, Unauthenticated users: 10/day
+    // Admins bypass all rate limits
+    const userRole = await getRequestUserRole(request);
+    const isAdmin = userRole === 'ADMIN';
+
     const dailyLimit = userId ? 20 : 10;
     const identifier = userId || getRateLimitIdentifier(request);
-    const limitCheck = checkDailyLimit(identifier, dailyLimit);
+    const limitCheck = isAdmin ? { allowed: true, remaining: 999, resetIn: 0 } : checkDailyLimit(identifier, dailyLimit);
 
     if (!limitCheck.allowed) {
       const hoursUntilReset = Math.ceil(limitCheck.resetIn / (60 * 60 * 1000));

@@ -1,4 +1,4 @@
-import { NextAuthOptions } from 'next-auth';
+import { NextAuthOptions, getServerSession } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { MongoDBAdapter } from '@auth/mongodb-adapter';
@@ -140,6 +140,16 @@ export function verifyJWT(token: string): JWTPayload | null {
     console.error('JWT verification failed:', error);
     return null;
   }
+}
+
+export async function getRequestUserRole(request: NextRequest): Promise<string | undefined> {
+  const token = extractTokenFromRequest(request);
+  if (token) {
+    const decoded = verifyJWT(token);
+    if (decoded?.role) return decoded.role;
+  }
+  const session = await getServerSession(authOptions);
+  return (session?.user as { role?: string })?.role;
 }
 
 export function extractTokenFromRequest(request: NextRequest): string | null {

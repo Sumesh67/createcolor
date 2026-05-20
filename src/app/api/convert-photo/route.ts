@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions, verifyJWT, extractTokenFromRequest } from '@/lib/auth';
+import { authOptions, verifyJWT, extractTokenFromRequest, getRequestUserRole } from '@/lib/auth';
 import { analyzePhoto } from '@/lib/ai/gemini-client';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import { createThumbnail } from '@/lib/image/processImage';
@@ -366,9 +366,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Daily limit: 20 images per day (shared with generate), resets at midnight
+    const userRole = await getRequestUserRole(request);
     const identifier = getRateLimitIdentifier(request);
-    const dailyLimit = checkDailyLimit(identifier, 20);
+    const dailyLimit = userRole === 'ADMIN'
+      ? { allowed: true, remaining: 999, resetIn: 0 }
+      : checkDailyLimit(identifier, 20);
 
     if (!dailyLimit.allowed) {
       const hoursUntilReset = Math.ceil(dailyLimit.resetIn / (60 * 60 * 1000));
