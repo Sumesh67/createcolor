@@ -6,13 +6,16 @@ export interface IUser extends Document {
   name?: string;
   image?: string;
   password?: string;
-  role: 'CHILD' | 'PARENT' | 'ADMIN';
+  role: 'CHILD' | 'PARENT' | 'ADMIN' | 'TEACHER';
+  teacherPendingVerification?: boolean;
   magicEnergy: number;
   lastEnergyReset: Date;
   storybookCount: number;
   lastStorybookReset: Date;
   magicSparks: number;
   lastSparkReset: Date;
+  chalkboardCredits: number;
+  lastCreditReset: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,8 +42,12 @@ const UserSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ['CHILD', 'PARENT', 'ADMIN'],
+      enum: ['CHILD', 'PARENT', 'ADMIN', 'TEACHER'],
       default: 'PARENT',
+    },
+    teacherPendingVerification: {
+      type: Boolean,
+      default: false,
     },
     magicEnergy: {
       type: Number,
@@ -63,6 +70,14 @@ const UserSchema = new Schema<IUser>(
       default: 2,
     },
     lastSparkReset: {
+      type: Date,
+      default: Date.now,
+    },
+    chalkboardCredits: {
+      type: Number,
+      default: 5,
+    },
+    lastCreditReset: {
       type: Date,
       default: Date.now,
     },

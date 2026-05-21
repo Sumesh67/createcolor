@@ -74,12 +74,13 @@ export function getAuthOptions(): NextAuthOptions {
             const existingUser = await User.findOne({ email: user.email }).exec();
 
             if (!existingUser) {
-              // Create user in our User model for Google OAuth users
+              const domain = user.email.split('@')[1] || '';
+              const isEduEmail = domain.endsWith('.edu') || /\.k12\.[a-z]{2}\.us$/.test(domain);
               const newUser = await User.create({
                 email: user.email,
                 name: user.name || '',
                 image: user.image || undefined,
-                role: 'PARENT', // Default role for OAuth users
+                role: isEduEmail ? 'TEACHER' : 'PARENT',
               });
               token.id = newUser._id.toString();
               token.role = newUser.role;

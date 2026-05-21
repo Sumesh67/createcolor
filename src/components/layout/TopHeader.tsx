@@ -9,14 +9,16 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/create", label: "Create", emoji: "🪄" },
-  { href: "/storybook", label: "Storybook", emoji: "📖" },
-  { href: "/gallery", label: "Gallery", emoji: "🖼️" },
+  { href: "/create", label: "Create", emoji: "🪄", roles: null },
+  { href: "/storybook", label: "Storybook", emoji: "📖", roles: null },
+  { href: "/gallery", label: "Gallery", emoji: "🖼️", roles: null },
+  { href: "/teacher", label: "Worksheets", emoji: "✏️", roles: ["TEACHER", "ADMIN"] },
 ];
 
 export function TopHeader() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
 
   if (status === "loading") {
     return <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 h-14" />;
@@ -42,7 +44,7 @@ export function TopHeader() {
 
         {/* Desktop nav links — hidden on mobile (bottom nav handles it) */}
         <nav className="hidden md:flex items-center gap-1">
-          {NAV_LINKS.map((link) => {
+          {NAV_LINKS.filter((link) => !link.roles || link.roles.includes(userRole ?? "")).map((link) => {
             const isActive = pathname === link.href || pathname.startsWith(link.href);
             return (
               <Link

@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Sparkles, Mic, Printer, Package, Upload, Users, Apple, BookOpen } from "lucide-react";
+import { Sparkles, Mic, Printer, Package, Upload, Users, Apple, BookOpen, PenLine } from "lucide-react";
 
 const APP_STORE_URL = "https://apps.apple.com/app/id6760249757";
 const FALLBACK_EMOJIS = ["🦄", "🦖", "🚀"];
@@ -62,25 +62,44 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center"
+            className="flex flex-col items-center gap-3"
           >
-            <Link href="/create">
-              <Button variant="primary" size="xl">
-                <Sparkles className="w-5 h-5 mr-2" />
-                Start Creating
-              </Button>
-            </Link>
-            <Link href="/storybook">
-              <Button variant="secondary" size="xl">
-                <BookOpen className="w-5 h-5 mr-2" />
-                Create Storybook
-              </Button>
-            </Link>
-            <Link href="#how-it-works">
-              <Button variant="outline" size="xl">
-                See How It Works
-              </Button>
-            </Link>
+            {/* Row 1 — primary actions */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/create">
+                <Button variant="primary" size="xl">
+                  <Sparkles className="w-5 h-5 mr-2" />
+                  Start Creating
+                </Button>
+              </Link>
+              <Link href="/storybook">
+                <Button variant="secondary" size="xl">
+                  <BookOpen className="w-5 h-5 mr-2" />
+                  Create Storybook
+                </Button>
+              </Link>
+              <Link href="#how-it-works">
+                <Button variant="outline" size="xl" className="py-[14px]">
+                  See How It Works
+                </Button>
+              </Link>
+            </div>
+
+            {/* Row 2 — secondary actions */}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/parent">
+                <Button variant="outline" size="lg" className="border-orange-300 text-orange-600 hover:bg-orange-50">
+                  <Package className="w-4 h-4 mr-2" />
+                  Party Pack — 20 pages
+                </Button>
+              </Link>
+              <Link href="/teacher">
+                <Button variant="outline" size="lg" className="border-blue-300 text-blue-600 hover:bg-blue-50">
+                  <PenLine className="w-4 h-4 mr-2" />
+                  Teacher Worksheets — free
+                </Button>
+              </Link>
+            </div>
           </motion.div>
 
           {/* App Store Download */}
@@ -243,6 +262,13 @@ export default function HomePage() {
                 color: "text-purple",
                 href: "/storybook",
               },
+              {
+                icon: PenLine,
+                title: "Teacher Worksheets",
+                description: "Generate printable coloring worksheets for your class — free for teachers!",
+                color: "text-blue-500",
+                href: "/teacher",
+              },
             ].map((feature, i) => (
               <motion.div
                 key={feature.title}
@@ -339,6 +365,158 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Storybook Feature Section */}
+      <section className="py-16 px-4 bg-gradient-to-br from-purple-50 to-indigo-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            {/* Left: visual */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="relative flex justify-center order-2 md:order-1"
+            >
+              <div className="relative w-56 h-72 sm:w-64 sm:h-80">
+                {[
+                  { emoji: "📸", label: "Upload photos" },
+                  { emoji: "✨", label: "AI writes story" },
+                  { emoji: "🎨", label: "AI illustrates" },
+                  { emoji: "📖", label: "Your storybook!" },
+                ].map((item, offset) => (
+                  <div
+                    key={offset}
+                    className="absolute inset-0 bg-white rounded-2xl shadow-card border border-gray-100 flex flex-col items-center justify-center gap-3"
+                    style={{ transform: `rotate(${(offset - 1.5) * 3}deg) translateY(${offset * -4}px)` }}
+                  >
+                    <span className="text-5xl">{item.emoji}</span>
+                    <div className="text-xs text-gray-400 font-body">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="absolute -top-4 -right-4 w-16 h-16 bg-purple-500 text-white rounded-full flex flex-col items-center justify-center shadow-lg">
+                <span className="text-xl font-bold leading-none">5</span>
+                <span className="text-[9px] font-semibold leading-none">pages</span>
+              </div>
+            </motion.div>
+
+            {/* Right: copy */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="order-1 md:order-2"
+            >
+              <div className="inline-flex items-center gap-2 bg-purple-100 text-purple-700 text-sm font-semibold px-3 py-1 rounded-full mb-4">
+                <BookOpen className="w-4 h-4" />
+                For Families
+              </div>
+              <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-4">
+                Storybook Creator — <span className="text-purple-500">your family, starring in a story</span> 📖
+              </h2>
+              <p className="font-body text-foreground/70 text-lg mb-6">
+                Upload photos of your kids, pets, or favourite characters. Our AI writes a 5-page rhyming story and illustrates every page — then packages it as a printable PDF.
+              </p>
+              <ul className="space-y-3 mb-8">
+                {[
+                  { emoji: "📸", text: "Upload photos of real characters — kids, pets, family members" },
+                  { emoji: "✍️", text: "AI writes a unique 5-page rhyming story around your characters" },
+                  { emoji: "🖼️", text: "Every page gets a custom AI illustration in coloring-book style" },
+                  { emoji: "📄", text: "Download as a print-ready storybook PDF to read together" },
+                ].map((item) => (
+                  <li key={item.text} className="flex items-start gap-3 font-body text-foreground/80">
+                    <span className="text-xl shrink-0">{item.emoji}</span>
+                    <span>{item.text}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/storybook">
+                <Button variant="primary" size="xl" className="bg-purple-500 hover:bg-purple-600 border-none">
+                  <BookOpen className="w-5 h-5 mr-2" />
+                  Create Your Storybook
+                </Button>
+              </Link>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Teacher Worksheets Feature Section */}
+      <section className="py-16 px-4 bg-gradient-to-br from-blue-50 to-cyan-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            {/* Left: copy */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+            >
+              <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 text-sm font-semibold px-3 py-1 rounded-full mb-4">
+                <PenLine className="w-4 h-4" />
+                Free for Teachers
+              </div>
+              <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-4">
+                Teacher Worksheets — <span className="text-blue-500">5 free worksheets</span> every week ✏️
+              </h2>
+              <p className="font-body text-foreground/70 text-lg mb-6">
+                Sign up with your school email and get a free teacher account. Type a topic, pick a grade and worksheet type — AI generates a print-ready coloring worksheet in seconds.
+              </p>
+              <ul className="space-y-3 mb-8">
+                {[
+                  { emoji: "🏫", text: "Free for .edu and school email addresses — no credit card needed" },
+                  { emoji: "🎨", text: "4 worksheet types: Trace, Connect-the-Dots, Math, and Reading/Vocab" },
+                  { emoji: "📐", text: "Grades K–8 supported — AI adjusts complexity automatically" },
+                  { emoji: "✨", text: "Every worksheet prints with your name on it — parents see CreateColor.com on every page" },
+                ].map((item) => (
+                  <li key={item.text} className="flex items-start gap-3 font-body text-foreground/80">
+                    <span className="text-xl shrink-0">{item.emoji}</span>
+                    <span>{item.text}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/teacher">
+                <Button variant="primary" size="xl" className="bg-blue-500 hover:bg-blue-600 border-none">
+                  <PenLine className="w-5 h-5 mr-2" />
+                  Generate a Worksheet
+                </Button>
+              </Link>
+            </motion.div>
+
+            {/* Right: visual */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="relative flex justify-center"
+            >
+              <div className="w-56 sm:w-64 bg-white rounded-2xl shadow-card border border-gray-100 p-4 flex flex-col gap-3">
+                {/* Worksheet header mock */}
+                <div className="flex justify-between text-[10px] text-gray-500 font-body border-b border-gray-200 pb-2">
+                  <span>Name: _______________</span>
+                  <span>Date: _______</span>
+                </div>
+                {/* Worksheet body mock */}
+                <div className="grid grid-cols-2 gap-2 flex-1">
+                  {["🪐", "🌍", "🔴", "🪐"].map((emoji, i) => (
+                    <div key={i} className="aspect-square bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-center">
+                      <span className="text-3xl">{emoji}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Viral footer mock */}
+                <div className="bg-gray-900 rounded-lg p-2 text-center">
+                  <p className="text-white text-[8px] font-bold leading-tight">
+                    ✨ Generated for Smith&apos;s class by CreateColor.com
+                  </p>
+                </div>
+              </div>
+              <div className="absolute -top-4 -right-4 bg-blue-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg">
+                FREE ✓
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-16 px-4 bg-gradient-to-r from-primary to-purple">
         <div className="max-w-3xl mx-auto text-center">
@@ -368,6 +546,7 @@ export default function HomePage() {
             <Link href="/gallery" className="hover:text-white">Gallery</Link>
             <Link href="/community" className="hover:text-white">Community</Link>
             <Link href="/parent" className="hover:text-white">Parents</Link>
+            <Link href="/teacher" className="hover:text-white">Worksheets</Link>
           </div>
           <a
             href={APP_STORE_URL}

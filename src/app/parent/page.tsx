@@ -32,6 +32,7 @@ export default function ParentPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<PartyPackResult | null>(null);
+  const [partyPackError, setPartyPackError] = useState<string | null>(null);
 
   // PIN Protection
   const [isPinLocked, setIsPinLocked] = useState(true);
@@ -98,6 +99,7 @@ export default function ParentPage() {
     setIsGenerating(true);
     setProgress(0);
     setResult(null);
+    setPartyPackError(null);
 
     try {
       // Simulate progress updates
@@ -117,7 +119,8 @@ export default function ParentPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to generate");
+        setPartyPackError(data.message || "Failed to generate party pack. Please try again.");
+        return;
       }
 
       setResult({
@@ -126,6 +129,7 @@ export default function ParentPage() {
       });
     } catch (error) {
       console.error("Failed to generate party pack:", error);
+      setPartyPackError("Something went wrong. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -186,6 +190,7 @@ export default function ParentPage() {
             isGenerating={isGenerating}
             progress={progress}
             result={result}
+            error={partyPackError}
           />
         </motion.div>
 

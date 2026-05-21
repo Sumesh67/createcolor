@@ -17,10 +17,23 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
+/**
+ * Returns true if the email domain strongly indicates a teacher/school account.
+ * .edu, .k12.XX.us variants, and known school .org patterns.
+ */
+function isEducationalEmail(email: string): boolean {
+  const lower = email.toLowerCase();
+  const domain = lower.split('@')[1] || '';
+  if (domain.endsWith('.edu')) return true;
+  // k12.XX.us pattern: e.g. teacher@school.k12.ca.us
+  if (/\.k12\.[a-z]{2}\.us$/.test(domain)) return true;
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, password, role } = body;
+    const { name, email, password, role, isTeacher } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -58,12 +71,19 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Determine role: auto-assign TEACHER for .edu/.k12 emails;
+    // flag pending verification for self-identified teachers with personal email.
+    const autoTeacher = isEducationalEmail(email);
+    const selfIdentifiedTeacher = !autoTeacher && isTeacher === true;
+    const finalRole = (autoTeacher || selfIdentifiedTeacher) ? 'TEACHER' : (role || 'PARENT');
+
     // Create user
     const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase(),
       password: hashedPassword,
-      role: role || 'PARENT',
+      role: finalRole,
+      teacherPendingVerification: selfIdentifiedTeacher,
     });
 
     // Generate JWT token

@@ -13,6 +13,29 @@ export interface EnergyStatus {
 }
 
 /**
+ * Check if a week has passed since the last Sunday-night reset
+ */
+function isNewWeek(lastReset: Date): boolean {
+  const now = new Date();
+  // Find the most recent Sunday at midnight
+  const lastSunday = new Date(now);
+  lastSunday.setDate(now.getDate() - now.getDay()); // rewind to Sunday
+  lastSunday.setHours(0, 0, 0, 0);
+  return new Date(lastReset) < lastSunday;
+}
+
+/**
+ * Get next Sunday midnight (the next weekly reset time)
+ */
+function getNextSundayReset(): Date {
+  const now = new Date();
+  const nextSunday = new Date(now);
+  nextSunday.setDate(now.getDate() + (7 - now.getDay()));
+  nextSunday.setHours(0, 0, 0, 0);
+  return nextSunday;
+}
+
+/**
  * Check if a day has passed since the last energy reset
  */
 function isNewDay(lastReset: Date): boolean {
@@ -241,6 +264,75 @@ export async function getSparkStatus(userId: string): Promise<EnergyStatus> {
     success: remaining > 0,
     remaining,
     resetAt: getNextResetTime(),
+  };
+}
+
+export const WEEKLY_CHALKBOARD_CREDITS = 5;
+
+/**
+ * Check and deduct a Chalkboard Credit for teacher worksheet generation (5/week, resets Sunday)
+ */
+export async function checkAndConsumeChalkboardCredit(userId: string): Promise<EnergyStatus> {
+  await connectDB();
+
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  if (user.role !== 'TEACHER') {
+    throw new Error('Chalkboard Credits are only available for teacher accounts');
+  }
+
+  if (isNewWeek(user.lastCreditReset ?? new Date(0))) {
+    console.log(`[Chalkboard] Resetting credits for teacher ${userId} (new week)`);
+    user.chalkboardCredits = WEEKLY_CHALKBOARD_CREDITS;
+    user.lastCreditReset = new Date();
+    await user.save();
+  }
+
+  const credits = user.chalkboardCredits ?? WEEKLY_CHALKBOARD_CREDITS;
+
+  if (credits <= 0) {
+    const error: EnergyError = {
+      code: 'NO_ENERGY',
+      message: 'You\'ve used all 5 Chalkboard Credits for this week! Credits reset every Sunday. ✏️',
+    };
+    throw error;
+  }
+
+  user.chalkboardCredits = credits - 1;
+  await user.save();
+
+  console.log(`[Chalkboard] Teacher ${userId} used 1 credit, ${user.chalkboardCredits} remaining this week`);
+
+  return {
+    success: true,
+    remaining: user.chalkboardCredits,
+    resetAt: getNextSundayReset(),
+  };
+}
+
+export async function getChalkboardStatus(userId: string): Promise<EnergyStatus> {
+  await connectDB();
+
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  if (user.role !== 'TEACHER') {
+    return { success: false, remaining: 0 };
+  }
+
+  if (isNewWeek(user.lastCreditReset ?? new Date(0))) {
+    user.chalkboardCredits = WEEKLY_CHALKBOARD_CREDITS;
+    user.lastCreditReset = new Date();
+    await user.save();
+  }
+
+  const remaining = user.chalkboardCredits ?? WEEKLY_CHALKBOARD_CREDITS;
+
+  return {
+    success: remaining > 0,
+    remaining,
+    resetAt: getNextSundayReset(),
   };
 }
 

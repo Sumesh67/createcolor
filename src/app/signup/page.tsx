@@ -14,8 +14,13 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"PARENT" | "CHILD">("PARENT");
+  const [isTeacher, setIsTeacher] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Auto-detect educational emails
+  const isEduEmail = /\.edu$|\.k12\.[a-z]{2}\.us$/i.test(email.split("@")[1] || "");
+  const showTeacherCheckbox = !isEduEmail && role === "PARENT" && email.includes("@");
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +31,7 @@ export default function SignupPage() {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role }),
+        body: JSON.stringify({ name, email, password, role, isTeacher: isEduEmail || isTeacher }),
       });
 
       const data = await response.json();
@@ -161,6 +166,26 @@ export default function SignupPage() {
                 </button>
               </div>
             </div>
+
+            {/* Teacher detection */}
+            {isEduEmail && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 text-center font-body">
+                School email detected — you will get a free Teacher account with 5 Chalkboard Credits per week!
+              </div>
+            )}
+            {showTeacherCheckbox && (
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isTeacher}
+                  onChange={(e) => setIsTeacher(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="font-body text-sm text-foreground/80">
+                  I am a teacher (requires manual verification — you will receive 5 free Chalkboard Credits per week once verified)
+                </span>
+              </label>
+            )}
 
             <Button
               type="submit"

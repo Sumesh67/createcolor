@@ -1,21 +1,26 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Home, Wand2, Image, Settings, BookOpen } from "lucide-react";
+import { Home, Wand2, Image, Settings, BookOpen, PenLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
-const NAV_ITEMS = [
-  { href: "/", icon: Home, label: "Home", emoji: "🏠" },
-  { href: "/create", icon: Wand2, label: "Create", emoji: "🪄" },
-  { href: "/storybook", icon: BookOpen, label: "Story", emoji: "📖" },
-  { href: "/gallery", icon: Image, label: "Gallery", emoji: "🖼️" },
-  { href: "/parent", icon: Settings, label: "Parents", emoji: "⚙️" },
-];
-
 export function MobileNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
+
+  const NAV_ITEMS = [
+    { href: "/", icon: Home, label: "Home", emoji: "🏠" },
+    { href: "/create", icon: Wand2, label: "Create", emoji: "🪄" },
+    { href: "/storybook", icon: BookOpen, label: "Story", emoji: "📖" },
+    { href: "/gallery", icon: Image, label: "Gallery", emoji: "🖼️" },
+    (userRole === "TEACHER" || userRole === "ADMIN")
+      ? { href: "/teacher", icon: PenLine, label: "Worksheets", emoji: "✏️" }
+      : { href: "/parent", icon: Settings, label: "Parents", emoji: "⚙️" },
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white border-t border-gray-100 safe-area-inset-bottom">

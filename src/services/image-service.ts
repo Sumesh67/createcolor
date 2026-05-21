@@ -174,3 +174,70 @@ export async function generateColoringPage(
 export function isImageServiceAvailable(): boolean {
   return !!process.env.TOGETHER_API_KEY;
 }
+
+// Negative prompt tuned specifically for clean worksheet line art
+const WORKSHEET_NEGATIVE_PROMPT =
+  'color, colored fills, shading, gradients, shadows, gray tones, 3d render, photorealistic, blurry, messy lines, sketchy, rough, watercolor, painting, photograph, realistic, halftone, cross-hatching, texture, background scenery, complex backgrounds, text embedded in scene, letters, numbers drawn into image, watermark, nudity, violence, extra limbs, bad anatomy, deformed, fused objects, clutter, crowded composition, multiple scenes, border decorations';
+
+/**
+ * Generate a worksheet image from a fully pre-built prompt.
+ * Bypasses prepareDreamShaperPrompt — used for teacher worksheets where
+ * the prompt is a precise composition instruction, not a user idea.
+ */
+export async function generateWorksheetImage(fullPrompt: string): Promise<ImageGenerationResponse> {
+  const apiKey = process.env.TOGETHER_API_KEY;
+
+  if (!apiKey) {
+    return { success: false, error: 'Image generation service not configured' };
+  }
+
+  console.log(`[WorksheetImage] Sending prompt (${fullPrompt.length} chars) to FLUX`);
+
+  let response: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await fetch('https://api.together.xyz/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: IMAGE_CONFIG.model,
+        prompt: fullPrompt,
+        negative_prompt: WORKSHEET_NEGATIVE_PROMPT,
+        width: IMAGE_CONFIG.width,
+        height: IMAGE_CONFIG.height,
+        steps: IMAGE_CONFIG.steps,
+        n: 1,
+        response_format: 'b64_json',
+      }),
+    });
+
+    if (response.status !== 429) break;
+
+    const retryDelay = 3000 * Math.pow(2, attempt);
+    console.log(`[WorksheetImage] Rate limited, retrying in ${retryDelay / 1000}s`);
+    await new Promise((resolve) => setTimeout(resolve, retryDelay));
+  }
+
+  if (!response) return { success: false, error: 'No response from API' };
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.log(`[WorksheetImage] API error: ${response.status} - ${errorText.substring(0, 150)}`);
+    return { success: false, error: `API error: ${response.status}` };
+  }
+
+  const data = await response.json();
+  const imageData = data.data?.[0];
+
+  if (imageData?.b64_json) {
+    return { success: true, base64: imageData.b64_json, imageUrl: `data:image/png;base64,${imageData.b64_json}` };
+  }
+
+  if (imageData?.url) {
+    return { success: true, imageUrl: imageData.url };
+  }
+
+  return { success: false, error: 'No image generated' };
+}

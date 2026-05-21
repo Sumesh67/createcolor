@@ -14,6 +14,7 @@ interface PartyPackBuilderProps {
   isGenerating?: boolean;
   progress?: number;
   result?: { pdfUrl: string; pageCount: number } | null;
+  error?: string | null;
 }
 
 interface PartyPackConfig {
@@ -45,6 +46,7 @@ export function PartyPackBuilder({
   isGenerating = false,
   progress = 0,
   result = null,
+  error = null,
 }: PartyPackBuilderProps) {
   const [theme, setTheme] = useState("");
   const [count, setCount] = useState(10);
@@ -198,6 +200,18 @@ export function PartyPackBuilder({
             <p className="text-center text-sm text-gray-600 mt-2">
               Generating page {Math.ceil((progress / 100) * count)} of {count}...
             </p>
+          </motion.div>
+        )}
+
+        {/* Error */}
+        {error && !isGenerating && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-50 border border-red-200 rounded-xl p-4 text-center"
+          >
+            <p className="font-display font-semibold text-red-800">Limit Reached</p>
+            <p className="text-sm text-red-600 mt-1">{error}</p>
           </motion.div>
         )}
 
