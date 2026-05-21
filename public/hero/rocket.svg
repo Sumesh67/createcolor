@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 240">
+  <rect width="160" height="240" fill="white"/>
+  <!-- Main body -->
+  <rect x="50" y="76" width="60" height="100" rx="4" fill="white" stroke="#1a1a1a" stroke-width="3.5"/>
+  <!-- Nose cone -->
+  <path d="M50 76 Q80 14 110 76 Z" fill="white" stroke="#1a1a1a" stroke-width="3.5" stroke-linejoin="round"/>
+  <!-- Porthole window -->
+  <circle cx="80" cy="112" r="20" fill="white" stroke="#1a1a1a" stroke-width="3.5"/>
+  <circle cx="80" cy="112" r="13" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+  <!-- Window bolts -->
+  <circle cx="73" cy="105" r="2.5" fill="#1a1a1a"/>
+  <circle cx="87" cy="105" r="2.5" fill="#1a1a1a"/>
+  <circle cx="73" cy="119" r="2.5" fill="#1a1a1a"/>
+  <circle cx="87" cy="119" r="2.5" fill="#1a1a1a"/>
+  <!-- Body panel line -->
+  <line x1="50" y1="145" x2="110" y2="145" stroke="#1a1a1a" stroke-width="2"/>
+  <!-- Rivet dots -->
+  <circle cx="56" cy="84" r="2" fill="#1a1a1a"/>
+  <circle cx="104" cy="84" r="2" fill="#1a1a1a"/>
+  <circle cx="56" cy="152" r="2" fill="#1a1a1a"/>
+  <circle cx="104" cy="152" r="2" fill="#1a1a1a"/>
+  <!-- Left fin -->
+  <path d="M50 142 L22 176 L50 168 Z" fill="white" stroke="#1a1a1a" stroke-width="3.5" stroke-linejoin="round"/>
+  <!-- Right fin -->
+  <path d="M110 142 L138 176 L110 168 Z" fill="white" stroke="#1a1a1a" stroke-width="3.5" stroke-linejoin="round"/>
+  <!-- Engine nozzle -->
+  <path d="M58 176 Q80 172 102 176 L106 186 Q80 190 54 186 Z" fill="white" stroke="#1a1a1a" stroke-width="3"/>
+  <!-- Flame outer -->
+  <path d="M60 190 Q66 214 80 228 Q94 214 100 190" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+  <!-- Flame inner -->
+  <path d="M68 190 Q73 206 80 216 Q87 206 92 190" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
+  <!-- Stars around rocket -->
+  <path d="M18 52 L19.5 47 L21 52 L26 52 L22 55 L23.5 60 L19.5 57 L15.5 60 L17 55 L13 52 Z" fill="#1a1a1a"/>
+  <path d="M138 42 L139 39 L140 42 L143 42 L141 44 L142 47 L139 45 L136 47 L137 44 L135 42 Z" fill="#1a1a1a"/>
+  <circle cx="22" cy="88" r="3" fill="#1a1a1a"/>
+  <circle cx="140" cy="76" r="2.5" fill="#1a1a1a"/>
+  <circle cx="14" cy="108" r="2" fill="#1a1a1a"/>
+  <circle cx="146" cy="100" r="1.5" fill="#1a1a1a"/>
+</svg>

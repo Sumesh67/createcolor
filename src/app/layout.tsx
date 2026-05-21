@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fredoka, Nunito } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import { TopHeader } from "@/components/layout/TopHeader";
+import { MobileNav } from "@/components/layout/MobileNav";
 import "./globals.css";
 
 const fredoka = Fredoka({
@@ -77,9 +78,10 @@ export default function RootLayout({
       >
         <Providers>
           <TopHeader />
-          <main className="pt-14">
+          <main className="pt-14 pb-16 md:pb-0">
             {children}
           </main>
+          <MobileNav />
         </Providers>
       </body>
     </html>

@@ -184,14 +184,15 @@ const WORKSHEET_NEGATIVE_PROMPT =
  * Bypasses prepareDreamShaperPrompt — used for teacher worksheets where
  * the prompt is a precise composition instruction, not a user idea.
  */
-export async function generateWorksheetImage(fullPrompt: string): Promise<ImageGenerationResponse> {
+export async function generateWorksheetImage(fullPrompt: string, steps?: number): Promise<ImageGenerationResponse> {
   const apiKey = process.env.TOGETHER_API_KEY;
 
   if (!apiKey) {
     return { success: false, error: 'Image generation service not configured' };
   }
 
-  console.log(`[WorksheetImage] Sending prompt (${fullPrompt.length} chars) to FLUX`);
+  const resolvedSteps = steps ?? IMAGE_CONFIG.steps;
+  console.log(`[WorksheetImage] Sending prompt (${fullPrompt.length} chars) to FLUX at ${resolvedSteps} steps`);
 
   let response: Response | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -207,7 +208,7 @@ export async function generateWorksheetImage(fullPrompt: string): Promise<ImageG
         negative_prompt: WORKSHEET_NEGATIVE_PROMPT,
         width: IMAGE_CONFIG.width,
         height: IMAGE_CONFIG.height,
-        steps: IMAGE_CONFIG.steps,
+        steps: resolvedSteps,
         n: 1,
         response_format: 'b64_json',
       }),

@@ -12,11 +12,51 @@ type WorksheetType = "trace" | "connect-dots" | "math" | "reading";
 
 const GRADE_LEVELS = ["K", "1", "2", "3", "4", "5", "6", "7", "8"];
 
-const WORKSHEET_TYPES: { value: WorksheetType; label: string; icon: string; description: string }[] = [
-  { value: "trace", label: "Trace", icon: "✏️", description: "Tracing letters, shapes & outlines" },
-  { value: "connect-dots", label: "Connect Dots", icon: "🔢", description: "Number dot-to-dot puzzles" },
-  { value: "math", label: "Math", icon: "🧮", description: "Color-by-number & math activities" },
-  { value: "reading", label: "Reading", icon: "📚", description: "Labeled scene vocabulary" },
+const WORKSHEET_TYPES: {
+  value: WorksheetType;
+  label: string;
+  icon: string;
+  description: string;
+  detail: string;
+  examples: string;
+  placeholder: string;
+}[] = [
+  {
+    value: "trace",
+    label: "Trace",
+    icon: "✏️",
+    description: "Tracing outlines & shapes",
+    detail: "A large bold outline drawing kids trace with a crayon or pencil. K–2 gets chunky simple shapes; G3–5 gets a few interior features; G6–8 gets more detail. Collection topics (e.g. 'farm animals') create a 6-cell grid.",
+    examples: "e.g. Cat, Letter A, Farm animals, Solar System planets",
+    placeholder: "e.g. Cat, Letter A, Farm animals, Solar System planets...",
+  },
+  {
+    value: "connect-dots",
+    label: "Connect Dots",
+    icon: "🔢",
+    description: "Dot-to-dot puzzle art",
+    detail: "A minimal outline of your topic — K–2 gets only the outer silhouette (no interior lines); G3–5 adds 1–2 key features; G6–8 gets a complex outline with several interior lines for a more satisfying puzzle.",
+    examples: "e.g. Butterfly, Dog, House, Rocket",
+    placeholder: "e.g. Butterfly, Dog, House, Rocket...",
+  },
+  {
+    value: "math",
+    label: "Math",
+    icon: "🧮",
+    description: "Counting & math activities",
+    detail: "Identical objects in a row for counting. K–2 gets 3 objects, G3–5 gets 5, G6–8 gets 8 — matching the counting range appropriate for each grade.",
+    examples: "e.g. Apples, Stars, Frogs, Balloons",
+    placeholder: "e.g. Apples, Stars, Frogs, Balloons...",
+  },
+  {
+    value: "reading",
+    label: "Reading",
+    icon: "📚",
+    description: "Vocabulary & labeling",
+    detail: "Four related objects placed in the corners of the page — students label each one. K–2 gets familiar everyday objects; G3–5 gets subject-specific vocabulary; G6–8 gets more content-rich examples.",
+    examples: "e.g. Fruits, Weather, Ocean animals, Community helpers",
+    placeholder: "e.g. Fruits, Weather, Ocean animals, Community helpers...",
+  },
 ];
 
 const WEEKLY_CREDITS = 5;
@@ -187,7 +227,7 @@ export default function TeacherPage() {
                   type="text"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  placeholder="e.g. Solar System, Frogs, Addition to 10..."
+                  placeholder={WORKSHEET_TYPES.find((w) => w.value === worksheetType)?.placeholder ?? "e.g. Solar System, Frogs..."}
                   className={cn(
                     "w-full px-4 py-3 rounded-xl border border-gray-200",
                     "font-body text-foreground placeholder:text-gray-400",
@@ -245,6 +285,32 @@ export default function TeacherPage() {
                     </button>
                   ))}
                 </div>
+
+                {/* Dynamic detail panel for selected type */}
+                {(() => {
+                  const selected = WORKSHEET_TYPES.find((w) => w.value === worksheetType);
+                  if (!selected) return null;
+                  return (
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={worksheetType}
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.18 }}
+                        className="bg-primary/5 border border-primary/20 rounded-xl p-3 space-y-1"
+                      >
+                        <p className="font-display text-xs font-bold text-primary flex items-center gap-1.5">
+                          {selected.icon} {selected.label} worksheet
+                        </p>
+                        <p className="font-body text-xs text-foreground/70 leading-relaxed">
+                          {selected.detail}
+                        </p>
+                        <p className="font-body text-xs text-foreground/40 italic">{selected.examples}</p>
+                      </motion.div>
+                    </AnimatePresence>
+                  );
+                })()}
               </div>
 
               {error && (

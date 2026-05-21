@@ -42,37 +42,51 @@ function isCollectionTopic(topic: string): boolean {
   return collectionKeywords.some((kw) => lower.includes(kw));
 }
 
+// Grade band helpers
+function gradeBand(gradeLevel: string): 'early' | 'mid' | 'upper' {
+  if (gradeLevel === 'K' || gradeLevel === '1' || gradeLevel === '2') return 'early';
+  if (gradeLevel === '3' || gradeLevel === '4' || gradeLevel === '5') return 'mid';
+  return 'upper'; // 6-8
+}
+
+// How many countable objects the math worksheet shows per grade band
+function mathCount(band: ReturnType<typeof gradeBand>): number {
+  return band === 'early' ? 3 : band === 'mid' ? 5 : 8;
+}
+
 /**
- * Hardcoded fallback prompts — used when Gemini is unavailable.
- * Each describes a specific VISUAL COMPOSITION, not just the subject,
- * so FLUX renders a usable worksheet layout rather than a generic scene.
+ * Hardcoded prompts for each worksheet type, now grade-aware.
+ *
+ *  trace        — single figure or grid; complexity scales with grade
+ *  connect-dots — outer silhouette only; detail level scales with grade
+ *  math         — K-2: 3 objects, G3-5: 5 objects, G6-8: 8 objects in a row
+ *  reading      — 4 corner objects; object complexity scales with grade
  */
 function buildFallbackPrompt(topic: string, gradeLevel: string, type: WorksheetType): string {
-  const isEarlyGrade = gradeLevel === 'K' || gradeLevel === '1' || gradeLevel === '2';
+  const band = gradeBand(gradeLevel);
   const isCollection = isCollectionTopic(topic);
+  const count = mathCount(band);
 
   switch (type) {
     case 'trace':
       if (isCollection) {
-        return `An educational trace worksheet arranged as a 3-column by 2-row grid (six equal cells) on a white page. Each cell contains ONE simple cartoon illustration of a different item from the "${topic}" category, drawn with very thick bold outlines, no interior detail lines, surrounded by generous white space inside its cell. Each cell has a thin border and a blank rectangular bar at the bottom for writing the name. Items are clearly distinct from each other, ${isEarlyGrade ? 'extremely simple and rounded' : 'recognizable and detailed enough to identify'}. ${WORKSHEET_STYLE}`;
+        return `Six simple cartoon illustrations from the "${topic}" category arranged in two rows of three on a white page, each drawing inside its own lightly bordered square cell with generous internal padding. Each cell shows ONE clearly different item — pick the six most recognizable examples. Drawings use very thick bold outlines, ${band === 'early' ? 'zero interior detail lines, extremely simple rounded shapes' : band === 'mid' ? 'minimal interior lines, moderately detailed' : 'clear interior lines showing key features, detailed enough to be interesting'}. Cells are evenly sized and evenly spaced. ${WORKSHEET_STYLE}`;
       }
-      return `A single large friendly cartoon ${topic} centered on the page with exaggerated simple features, surrounded by generous white space. Very thick bold outlines with no interior detail lines — designed for young children to trace around the main shape. Isolated figure on white, no background, simple rounded forms, ${isEarlyGrade ? 'oversized and approachable' : 'clear and detailed'}. ${WORKSHEET_STYLE}`;
+      return `One large friendly cartoon ${topic} centered on the page, surrounded by generous white space on all sides. ${band === 'early' ? 'Very thick bold outlines, no interior detail lines, oversized chunky rounded form — extremely simple and approachable' : band === 'mid' ? 'Thick bold outlines, a few interior lines showing main features, clear and identifiable' : 'Bold outlines with interior detail lines showing anatomy and features, complex enough to be engaging for older students'}. The figure fills about half the page height. No background, isolated on white. ${WORKSHEET_STYLE}`;
 
     case 'connect-dots':
-      return `A simple recognizable ${topic} scene drawn as a clean outline illustration, the main subject rendered with a minimal contour line showing its key silhouette and a few important interior lines. The outline is broken into short separate line segments as if the dots have already been connected, suggesting a dot-to-dot puzzle in its completed form. Single subject centered on white page with clear outer shape, no background. ${WORKSHEET_STYLE}`;
+      return `One ${topic} drawn ${band === 'early' ? 'using only its smooth outer boundary line — a single continuous minimal contour with absolutely no interior lines, no texture. The shape is recognizable purely from its large simple silhouette. Very thin clean stroke, figure centered, large empty white area all around. Sparse and minimalist like a paper cut-out shadow' : band === 'mid' ? 'as a clean minimal outline showing the outer boundary plus one or two key interior features only (such as a single eye or a wing edge). Very sparse, mostly silhouette, thin clean stroke, centered on white page with lots of empty space' : 'as a detailed outline showing the outer boundary and several recognizable interior features. More line segments and curves than earlier grades — complex enough to be a satisfying dot-to-dot for older students. Thin clean strokes, centered on white page'}. ${WORKSHEET_STYLE}`;
 
     case 'math':
-      return `An educational illustration showing exactly five distinct ${topic}-themed objects arranged in a clean single row across the middle of the page — each object drawn identically, clearly separated by white space, each inside its own thin rectangular box outline. Objects are simple bold cartoon shapes. Below each box there is a blank square for writing. Top area of page is empty white for a title. ${WORKSHEET_STYLE}`;
+      return `${count} identical small cartoon ${topic} drawings arranged in a single horizontal row across the center of the page, evenly spaced apart with generous white space between each one and above and below the row. Each ${topic} is drawn identically — same size, same ${band === 'early' ? 'very simple chunky' : band === 'mid' ? 'clear and recognizable' : 'detailed'} bold outline, same pose. ${count} separate isolated drawings in a row, nothing else on the page. ${WORKSHEET_STYLE}`;
 
     case 'reading':
-      return `A clean educational vocabulary illustration showing four separate ${topic}-related objects arranged in a 2x2 grid layout on the page. Each object is large, simple, cartoon-style, centered inside its own equal-sized square cell with a thin border. Each cell has a blank rectangular label bar at the bottom edge. Objects are clearly identifiable: choose the most iconic items associated with ${topic}. No overlapping, generous white space inside each cell. ${WORKSHEET_STYLE}`;
+      return `Four different objects closely associated with "${topic}" ${band === 'early' ? '— choose the simplest, most familiar everyday examples a kindergartner would know' : band === 'mid' ? '— choose clear subject-specific examples appropriate for elementary students' : '— choose more specific, content-rich examples appropriate for middle school students'} placed one in each corner of the page — top-left, top-right, bottom-left, bottom-right. Each object is a large simple cartoon drawing, clearly recognizable, drawn in thick bold outline. The four objects are completely different from each other. Large empty white space in the center of the page. No overlap between objects. ${WORKSHEET_STYLE}`;
   }
 }
 
 /**
- * Gemini constructs a FLUX composition prompt — telling FLUX exactly what
- * spatial layout, subject count, and visual structure to render.
- * We steer Gemini away from "describe the subject" and toward "describe the page layout".
+ * Gemini writes a FLUX-optimised composition prompt for the given worksheet type and grade.
  */
 async function buildGeminiPrompt(topic: string, gradeLevel: string, type: WorksheetType): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -82,42 +96,52 @@ async function buildGeminiPrompt(topic: string, gradeLevel: string, type: Worksh
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const gradeContext = gradeLevel === 'K' ? 'Kindergarten (ages 5-6)' : `Grade ${gradeLevel} (ages ${5 + parseInt(gradeLevel, 10)}-${6 + parseInt(gradeLevel, 10)})`;
-  const isEarlyGrade = gradeLevel === 'K' || gradeLevel === '1' || gradeLevel === '2';
-
+  const band = gradeBand(gradeLevel);
   const isCollection = isCollectionTopic(topic);
+  const count = mathCount(band);
 
-  const traceInstruction = isCollection
-    ? `TRACE worksheet — the topic "${topic}" is a COLLECTION of multiple items. The image must show a 3-column by 2-row grid (6 equal cells) on a white page. Each cell contains ONE different cartoon item from the "${topic}" category — pick the 6 most recognizable examples. Items have very thick bold outlines, no interior detail, ${isEarlyGrade ? 'extremely simple rounded shapes' : 'clear identifiable forms'}. Each cell has a thin border and a blank bar at the bottom. NO background, no clutter.`
-    : `TRACE worksheet — the image must show ONE large centered cartoon ${topic} with very thick, simple bold outlines and generous white space around it. Clear, chunky, rounded forms ${isEarlyGrade ? 'extremely oversized and simple' : 'moderately detailed but still bold'} so a ${gradeContext} student can trace the outline with a crayon. NO interior detail lines. NO background scenery. Single isolated figure.`;
+  const traceDetail = band === 'early'
+    ? 'very thick bold outlines, no interior detail lines, oversized chunky rounded forms'
+    : band === 'mid'
+    ? 'thick bold outlines, a few interior lines showing main features'
+    : 'bold outlines with interior detail lines and recognizable anatomy';
 
-  const typeInstructions: Record<WorksheetType, string> = {
-    'trace': traceInstruction,
+  const structural: Record<WorksheetType, string> = {
+    'trace': isCollection
+      ? `Six cartoon items from "${topic}" in a 3-column × 2-row grid of equal cells. ONE different item per cell, ${traceDetail}, thin cell border. Pick the six most recognizable examples for ${gradeContext}.`
+      : `ONE large ${topic} cartoon centered on the page. ${traceDetail}. Isolated on white, lots of empty space around it. Appropriate complexity for ${gradeContext}.`,
 
-    'connect-dots': `CONNECT-THE-DOTS worksheet — the image must show the COMPLETED picture that a connect-the-dots puzzle would reveal: a clean, recognizable ${topic}-themed cartoon character or object drawn with a minimal single-stroke contour outline. The contour should be a clear silhouette with just enough interior lines to convey the subject. The line should look slightly segmented/dotted as if it represents connected dots. Centered on white page, no background.`,
+    'connect-dots': band === 'early'
+      ? `ONE ${topic} drawn ONLY as its smooth outer silhouette — single boundary line, ZERO interior lines, no details. Recognizable purely from outer shape. Thin stroke, centered, large empty space. Simple enough for ${gradeContext}.`
+      : band === 'mid'
+      ? `ONE ${topic} drawn as a minimal outline showing outer boundary plus 1-2 key interior features only. Sparse, mostly silhouette. Thin clean strokes, centered. Appropriate for ${gradeContext}.`
+      : `ONE ${topic} drawn as a detailed outline with outer boundary and several interior features — complex enough for a satisfying dot-to-dot for ${gradeContext}. Thin clean strokes, centered on white page.`,
 
-    'math': `COUNTING/MATH worksheet — the image must show exactly FIVE identical cartoon ${topic}-themed objects arranged in one neat horizontal row across the center of the page. Each object is enclosed in its own thin rectangular box. Objects are bold, simple, identically sized. Below each box is a small blank writing square. Top area is empty white space. The layout must be symmetrical and grid-like.`,
+    'math':
+      `EXACTLY ${count} identical small ${topic} cartoon drawings in ONE horizontal row across the page centre. Each drawing is the same size and ${band === 'early' ? 'very simple chunky' : band === 'mid' ? 'clear and recognizable' : 'detailed'} bold outline, same pose. ${count} separate isolated objects evenly spaced — nothing else on the page. (${gradeContext} counting level: ${count} objects)`,
 
-    'reading': `VOCABULARY/READING worksheet — the image must show FOUR different ${topic}-related objects arranged in a 2-column, 2-row grid. Each object occupies its own equal-sized cell with a visible thin border. Each cell contains ONE large simple cartoon object centered inside it, with a blank horizontal label bar at the bottom of the cell. Generous padding inside each cell. Objects should be the most iconic/recognizable items associated with ${topic} for ${gradeContext} students.`,
+    'reading':
+      `FOUR different objects associated with "${topic}" for ${gradeContext} — ${band === 'early' ? 'choose the simplest familiar everyday examples' : band === 'mid' ? 'choose clear subject-specific examples' : 'choose specific content-rich examples for middle school'}. One object in each corner (top-left, top-right, bottom-left, bottom-right). Large empty white centre. Each object clearly different, large, simple, bold outline.`,
   };
 
-  const systemPrompt = `You are an expert AI image prompt engineer who writes FLUX image generation prompts for educational children's worksheets.
+  const systemPrompt = `You are a precise FLUX image-prompt engineer for children's educational worksheets.
 
-CRITICAL RULES:
-- You write COMPOSITION prompts, not subject descriptions. Describe EXACTLY what appears on the page: how many objects, where they are positioned, what surrounds them, what blank spaces exist.
-- FLUX cannot draw text, numbers, or labels — never mention them in the image content. The teacher adds those separately.
-- Every prompt must end with this exact style string (copy it verbatim): "${WORKSHEET_STYLE}"
-- Output ONLY the image prompt. No explanation, no quotes, no markdown.
-- Length: 80-120 words total including the style string.
+HARD RULES:
+1. Your prompt must produce a VISUALLY DISTINCT layout that matches the worksheet type. Do NOT default to "a single centered drawing" unless the type is TRACE.
+2. Include the EXACT structural requirement below word-for-word in your output — do not paraphrase or soften it.
+3. Do NOT mention text, labels, numbers, writing lines, or blank boxes — FLUX cannot draw these.
+4. End the prompt with this style string verbatim: "${WORKSHEET_STYLE}"
+5. Output ONLY the final prompt. No preamble, no quotes, no markdown. 60-90 words total.
 
-WORKSHEET REQUIREMENTS:
-${typeInstructions[type]}
+WORKSHEET TYPE: ${type.toUpperCase()} — GRADE: ${gradeContext}
+STRUCTURAL REQUIREMENT (copy this into your prompt):
+${structural[type]}
 
-Write the FLUX image generation prompt now:`;
+Now write the complete FLUX image generation prompt:`;
 
   try {
     const result = await model.generateContent(systemPrompt);
     const text = result.response.text().trim().replace(/^["']|["']$/g, '');
-    // Ensure the style string is always present — append if Gemini dropped it
     if (!text.toLowerCase().includes('pure white background')) {
       return `${text}, ${WORKSHEET_STYLE}`;
     }
@@ -210,8 +234,14 @@ export async function POST(request: NextRequest) {
     const imagePrompt = await buildGeminiPrompt(topic, gradeLevel, type);
     console.log(`[Teacher] Prompt for FLUX (${imagePrompt.length} chars): ${imagePrompt.substring(0, 120)}...`);
 
+    // Higher grades and multi-object types need more steps for layout fidelity
+    const band = gradeBand(gradeLevel);
+    const steps = (type === 'math' || type === 'reading')
+      ? 12
+      : (type === 'connect-dots' && band === 'upper') ? 10 : 8;
+
     // Generate worksheet image — uses direct FLUX path, bypasses the coloring-page wrapper
-    const imageResult = await generateWorksheetImage(imagePrompt);
+    const imageResult = await generateWorksheetImage(imagePrompt, steps);
 
     if (!imageResult.success || !imageResult.imageUrl) {
       // Refund the credit on failure (admins have no credit to refund)
