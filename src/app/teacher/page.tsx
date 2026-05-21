@@ -57,6 +57,32 @@ export default function TeacherPage() {
     }
   }, [status, isTeacher]);
 
+  const handleDownloadPDF = useCallback(async () => {
+    if (!generatedImageUrl) return;
+    setIsDownloading(true);
+    try {
+      const doc = (
+        <WorksheetPDF
+          imageUrl={generatedImageUrl}
+          teacherName={teacherName}
+          topic={topic}
+          gradeLevel={gradeLevel}
+        />
+      );
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `worksheet-${topic.replace(/\s+/g, "-").toLowerCase()}-grade${gradeLevel}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Failed to generate PDF. Please try again.");
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [generatedImageUrl, teacherName, topic, gradeLevel]);
+
   if (status === "loading" || status === "unauthenticated") {
     return <div className="min-h-screen bg-background" />;
   }
@@ -113,32 +139,6 @@ export default function TeacherPage() {
       setIsGenerating(false);
     }
   };
-
-  const handleDownloadPDF = useCallback(async () => {
-    if (!generatedImageUrl) return;
-    setIsDownloading(true);
-    try {
-      const doc = (
-        <WorksheetPDF
-          imageUrl={generatedImageUrl}
-          teacherName={teacherName}
-          topic={topic}
-          gradeLevel={gradeLevel}
-        />
-      );
-      const blob = await pdf(doc).toBlob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `worksheet-${topic.replace(/\s+/g, "-").toLowerCase()}-grade${gradeLevel}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setError("Failed to generate PDF. Please try again.");
-    } finally {
-      setIsDownloading(false);
-    }
-  }, [generatedImageUrl, teacherName, topic, gradeLevel]);
 
   return (
     <div className="min-h-screen bg-background">
