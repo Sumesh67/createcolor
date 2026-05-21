@@ -3,27 +3,14 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Sparkles, Mic, Printer, Package, Upload, Users, Apple, BookOpen, PenLine } from "lucide-react";
+import { HeroAnimatedCards } from "@/components/home/HeroAnimatedCards";
 
 const APP_STORE_URL = "https://apps.apple.com/app/id6760249757";
-const FALLBACK_EMOJIS = ["🦄", "🦖", "🚀"];
 
 export default function HomePage() {
-  const [sampleImages, setSampleImages] = useState<string[]>([]);
-
-  useEffect(() => {
-    fetch("/api/gallery?public=true&limit=3")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.pages?.length) {
-          setSampleImages(d.pages.map((p: { thumbnailUrl?: string; imageUrl: string }) => p.thumbnailUrl || p.imageUrl));
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   return (
     <main className="min-h-screen bg-background">
@@ -124,37 +111,8 @@ export default function HomePage() {
           </motion.div>
         </div>
 
-        {/* Animated Sample Pages */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-16 flex justify-center gap-4 overflow-hidden"
-        >
-          {FALLBACK_EMOJIS.map((emoji, i) => (
-            <motion.div
-              key={i}
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.6 + i * 0.2, type: "spring" }}
-              className="w-32 h-40 sm:w-48 sm:h-60 bg-white rounded-2xl shadow-card overflow-hidden flex items-center justify-center"
-            >
-              {sampleImages[i] ? (
-                <div className="relative w-full h-full">
-                  <Image
-                    src={sampleImages[i]}
-                    alt="Coloring page example"
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                </div>
-              ) : (
-                <span className="text-5xl sm:text-7xl">{emoji}</span>
-              )}
-            </motion.div>
-          ))}
-        </motion.div>
+        {/* Animated outline → color cards */}
+        <HeroAnimatedCards />
       </section>
 
       {/* How It Works */}
