@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -16,6 +16,13 @@ export function VoicePrompt({ onTranscript, isGenerating = false }: VoicePromptP
   const [transcript, setTranscript] = useState("");
   const [isSupported, setIsSupported] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const autoStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stable wave bar heights — generated once, never recalculated on re-render
+  const waveHeights = useMemo(
+    () => Array.from({ length: 7 }, () => Math.floor(Math.random() * 40) + 12),
+    []
+  );
 
   useEffect(() => {
     // Check if Web Speech API is supported
@@ -24,6 +31,17 @@ export function VoicePrompt({ onTranscript, isGenerating = false }: VoicePromptP
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       setIsSupported(!!SpeechRecognition);
     }
+  }, []);
+
+  const stopListening = useCallback(() => {
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+    try {
+      recognitionRef.current?.stop();
+    } catch (_) {}
+    setIsListening(false);
   }, []);
 
   const startListening = useCallback(() => {
@@ -37,6 +55,9 @@ export function VoicePrompt({ onTranscript, isGenerating = false }: VoicePromptP
       return;
     }
 
+    // Stop any in-progress session before starting a new one
+    stopListening();
+
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = true;
@@ -46,37 +67,47 @@ export function VoicePrompt({ onTranscript, isGenerating = false }: VoicePromptP
       setIsListening(true);
       setError(null);
       setTranscript("");
+      // Auto-stop after 15 seconds of no final result
+      autoStopTimerRef.current = setTimeout(() => {
+        recognition.stop();
+        setError("No speech detected. Tap the mic and try again!");
+      }, 15000);
     };
 
     recognition.onresult = (event: any) => {
       const current = event.results[event.results.length - 1];
-      const transcriptText = current[0].transcript;
-      setTranscript(transcriptText);
+      setTranscript(current[0].transcript);
+      // Clear auto-stop timer once we have a result
+      if (current.isFinal && autoStopTimerRef.current) {
+        clearTimeout(autoStopTimerRef.current);
+        autoStopTimerRef.current = null;
+      }
     };
 
     recognition.onerror = (event: any) => {
+      if (autoStopTimerRef.current) {
+        clearTimeout(autoStopTimerRef.current);
+        autoStopTimerRef.current = null;
+      }
       setIsListening(false);
       if (event.error === "not-allowed") {
         setError("Microphone access was denied. Please allow microphone access.");
-      } else {
-        setError(`Error: ${event.error}`);
+      } else if (event.error !== "aborted") {
+        setError(`Microphone error: ${event.error}`);
       }
     };
 
     recognition.onend = () => {
+      if (autoStopTimerRef.current) {
+        clearTimeout(autoStopTimerRef.current);
+        autoStopTimerRef.current = null;
+      }
       setIsListening(false);
     };
 
-    (window as any).currentRecognition = recognition;
+    recognitionRef.current = recognition;
     recognition.start();
-  }, []);
-
-  const stopListening = useCallback(() => {
-    if (typeof window !== "undefined" && (window as any).currentRecognition) {
-      (window as any).currentRecognition.stop();
-    }
-    setIsListening(false);
-  }, []);
+  }, [stopListening]);
 
   const handleSubmit = () => {
     if (transcript.trim()) {
@@ -156,13 +187,11 @@ export function VoicePrompt({ onTranscript, isGenerating = false }: VoicePromptP
             exit={{ opacity: 0, height: 0 }}
             className="flex items-center justify-center gap-1"
           >
-            {[...Array(7)].map((_, i) => (
+            {waveHeights.map((height, i) => (
               <motion.div
                 key={i}
                 className="w-2 bg-primary rounded-full"
-                animate={{
-                  height: [12, Math.random() * 40 + 12, 12],
-                }}
+                animate={{ height: [12, height, 12] }}
                 transition={{
                   duration: 0.5,
                   repeat: Infinity,

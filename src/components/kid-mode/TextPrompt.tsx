@@ -10,6 +10,8 @@ interface TextPromptProps {
   isGenerating?: boolean;
 }
 
+const MIN_LENGTH = 3;
+
 const IDEA_CHIPS = [
   { emoji: "🦖", text: "Dinosaur chef cooking" },
   { emoji: "🧜‍♀️", text: "Mermaid princess underwater" },
@@ -76,8 +78,13 @@ export function TextPrompt({ onSubmit, isGenerating = false }: TextPromptProps) 
             </div>
           </div>
 
-          {/* Character Count */}
-          <div className="flex justify-end mt-2 px-2">
+          {/* Character Count + min-length hint */}
+          <div className="flex justify-between mt-2 px-2">
+            <span className="font-body text-sm text-gray-400">
+              {text.length > 0 && text.trim().length < MIN_LENGTH && (
+                <span className="text-amber-500">Keep typing...</span>
+              )}
+            </span>
             <span className={`font-body text-sm ${text.length > 120 ? 'text-orange-500' : 'text-gray-400'}`}>
               {text.length}/150
             </span>
@@ -96,7 +103,7 @@ export function TextPrompt({ onSubmit, isGenerating = false }: TextPromptProps) 
           size="lg"
           onClick={handleSubmit}
           isLoading={isGenerating}
-          disabled={!text.trim() || isGenerating}
+          disabled={text.trim().length < MIN_LENGTH || isGenerating}
           className="w-full"
         >
           <Sparkles className="w-5 h-5 mr-2" />

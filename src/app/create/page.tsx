@@ -31,119 +31,49 @@ export default function CreatePage() {
   const [editHistory, setEditHistory] = useState<EditHistoryItem[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFallback, setIsFallback] = useState(false);
   const [printCount, setPrintCount] = useState(0);
 
-  // Load image with timeout and fallback
-  const loadImageWithFallback = useCallback(async (
-    primaryUrl: string,
-    fallbackUrl: string,
-    timeoutMs: number = 30000
-  ): Promise<string> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      let resolved = false;
+  const handleGenerateRequest = useCallback(async (body: object) => {
+    setIsGenerating(true);
+    setError(null);
+    setIsFallback(false);
 
-      const timeout = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          console.log('[Image] Timeout, using fallback');
-          resolve(fallbackUrl);
-        }
-      }, timeoutMs);
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-      img.onload = () => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeout);
-          console.log('[Image] Loaded successfully from Pollinations');
-          resolve(primaryUrl);
-        }
-      };
+      const data = await response.json();
 
-      img.onerror = () => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeout);
-          console.log('[Image] Load error, using fallback');
-          resolve(fallbackUrl);
-        }
-      };
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to generate");
+      }
 
-      img.src = primaryUrl;
-    });
+      setImageUrl(data.imageUrl);
+      setCurrentPrompt(data.prompt);
+      if (data.isFallback) setIsFallback(true);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Something went wrong. Please try again!";
+      setError(errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
   }, []);
 
-  const handleGenerate = useCallback(async (selections: SlotSelections) => {
-    setIsGenerating(true);
-    setError(null);
+  const handleGenerate = useCallback(
+    (selections: SlotSelections) => handleGenerateRequest({ slotSelections: selections }),
+    [handleGenerateRequest]
+  );
 
-    try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slotSelections: selections }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to generate");
-      }
-
-      // Handle Pollinations URL - load client-side with fallback
-      if (data.isPollinationsUrl && data.svgFallbackUrl) {
-        const finalUrl = await loadImageWithFallback(data.imageUrl, data.svgFallbackUrl);
-        setImageUrl(finalUrl);
-      } else {
-        setImageUrl(data.imageUrl);
-      }
-
-      setCurrentPrompt(data.prompt);
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Something went wrong. Please try again!";
-      setError(errorMessage);
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [loadImageWithFallback]);
-
-  const handleVoiceGenerate = useCallback(async (transcript: string) => {
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customPrompt: transcript }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to generate");
-      }
-
-      // Handle Pollinations URL - load client-side with fallback
-      if (data.isPollinationsUrl && data.svgFallbackUrl) {
-        const finalUrl = await loadImageWithFallback(data.imageUrl, data.svgFallbackUrl);
-        setImageUrl(finalUrl);
-      } else {
-        setImageUrl(data.imageUrl);
-      }
-
-      setCurrentPrompt(data.prompt);
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Something went wrong. Please try again!";
-      setError(errorMessage);
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [loadImageWithFallback]);
+  const handleVoiceGenerate = useCallback(
+    (transcript: string) => handleGenerateRequest({ customPrompt: transcript }),
+    [handleGenerateRequest]
+  );
 
   const handleEdit = useCallback(async (editMode: EditMode, editText: string) => {
     if (!currentPrompt) return;
@@ -325,6 +255,27 @@ export default function CreatePage() {
           )}
         </AnimatePresence>
 
+        <AnimatePresence>
+          {isFallback && imageUrl && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3"
+            >
+              <p className="font-body text-amber-700 text-sm">
+                🎨 Our AI is a little busy right now — here&apos;s a simple version! Try again in a moment for a full image.
+              </p>
+              <button
+                onClick={() => setIsFallback(false)}
+                className="text-amber-500 hover:text-amber-700 text-xs font-body shrink-0"
+              >
+                Dismiss
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Input Section */}
           <div>
@@ -410,6 +361,7 @@ export default function CreatePage() {
                 setImageUrl(null);
                 setCurrentPrompt("");
                 setEditHistory([]);
+                setIsFallback(false);
               }}
             >
               Create New Page

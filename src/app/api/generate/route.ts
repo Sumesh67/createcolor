@@ -159,6 +159,7 @@ export async function POST(request: NextRequest) {
       // Generate coloring page image
       const result = await generateColoringPage(prompt);
       const generatedImageUrl = result.imageUrl;
+      const isFallback = result.isFallback ?? false;
 
       // Check if it's a data URL (SVG or base64) or external URL
       const isDataUrl = generatedImageUrl.startsWith('data:');
@@ -187,6 +188,7 @@ export async function POST(request: NextRequest) {
           pageId,
           prompt: displayPrompt,
           remaining: limitCheck.remaining,
+          isFallback,
         }, { headers: corsHeaders });
       }
 
@@ -224,6 +226,7 @@ export async function POST(request: NextRequest) {
         pageId,
         prompt: displayPrompt,
         remaining: limitCheck.remaining,
+        isFallback,
       }, { headers: corsHeaders });
     }
 

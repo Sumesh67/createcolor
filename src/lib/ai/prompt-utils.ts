@@ -7,13 +7,13 @@
 const COLORING_BOOK_PREFIX =
   'Professional children coloring book page, simple clean line art,';
 
-// Suffix to enforce black and white outline style
+// Suffix to enforce black and white outline style with full composition
 const COLORING_BOOK_SUFFIX =
-  'thick bold black outlines, pure white background, no coloring, no shading, no gray, high contrast, vector style, G-rated, safe for kids, no text, no words, correct anatomy, one head per character';
+  'thick bold black outlines, pure white background, no coloring, no shading, no gray, high contrast, vector style, G-rated, safe for kids, no text, no words, correct anatomy, one head per character, full body visible, complete figure, centered composition, entire subject fits within frame, wide shot, zoomed out enough to show whole body, ample white space around subject';
 
-// Strict negative prompt to force black and white outlines
+// Strict negative prompt to force black and white outlines and prevent cropping
 export const DREAMSHAPER_NEGATIVE_PROMPT =
-  'color, shading, gradients, shadows, 3d, photorealistic, gray, blurry, messy lines, text, words, letters, writing, watermark, nudity, violence, scary, dark, complex backgrounds, realistic, photograph, painting, colored, fills, halftone, extra heads, duplicate heads, two heads, multiple heads, extra limbs, extra arms, extra legs, deformed, malformed, disfigured, bad anatomy, fused bodies, merged characters, conjoined';
+  'color, shading, gradients, shadows, 3d, photorealistic, gray, blurry, messy lines, text, words, letters, writing, watermark, nudity, violence, scary, dark, complex backgrounds, realistic, photograph, painting, colored, fills, halftone, extra heads, duplicate heads, two heads, multiple heads, extra limbs, extra arms, extra legs, deformed, malformed, disfigured, bad anatomy, fused bodies, merged characters, conjoined, cropped, cut off, partial figure, incomplete figure, out of frame, clipped, body parts missing, figure extends beyond border, close-up, extreme close-up, portrait crop, zoomed in too much';
 
 /**
  * Wraps user input into a professional DreamShaper prompt for coloring pages

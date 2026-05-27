@@ -10,6 +10,7 @@ interface GenerationResult {
   imageUrl: string;
   revisedPrompt?: string;
   processed?: boolean;
+  isFallback?: boolean;
 }
 
 // SVG fallback templates
@@ -77,6 +78,7 @@ export async function generateColoringPage(prompt: string): Promise<GenerationRe
       imageUrl: pollinationsImage,
       revisedPrompt: prompt,
       processed: false,
+      isFallback: true,
     };
   }
 
@@ -86,6 +88,7 @@ export async function generateColoringPage(prompt: string): Promise<GenerationRe
     imageUrl: getSvgFallback(prompt),
     revisedPrompt: prompt,
     processed: false,
+    isFallback: true,
   };
 }
 
