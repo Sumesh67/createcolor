@@ -202,32 +202,41 @@ export async function POST(request: NextRequest) {
       const imgH = contentH - 2 * margin;
 
       if (page.imageUrl) {
-        const src = page.imageUrl.startsWith('data:image') ? page.imageUrl : null;
-        if (src) {
-          try {
-            const imgData = extractBase64(src);
-            if (imgData) {
-              let img = null;
-              try { img = await pdfDoc.embedJpg(imgData.data); } catch { /* try png */ }
-              if (!img) { try { img = await pdfDoc.embedPng(imgData.data); } catch { /* skip */ } }
+        try {
+          let imgBytes: Uint8Array | null = null;
+          let imgType: 'png' | 'jpg' = 'png';
 
-              if (img) {
-                const scale = Math.min(imgW / img.width, imgH / img.height);
-                const drawW = img.width * scale;
-                const drawH = img.height * scale;
-                const drawX = imgX + (imgW - drawW) / 2;
-                const drawY = FOOTER_H + margin + (imgH - drawH) / 2;
-                p.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
-              }
+          if (page.imageUrl.startsWith('data:image')) {
+            const imgData = extractBase64(page.imageUrl);
+            if (imgData) { imgBytes = imgData.data; imgType = imgData.type; }
+          } else if (page.imageUrl.startsWith('http')) {
+            const res = await fetch(page.imageUrl);
+            if (res.ok) {
+              const buf = await res.arrayBuffer();
+              imgBytes = new Uint8Array(buf);
+              imgType = res.headers.get('content-type')?.includes('png') ? 'png' : 'jpg';
             }
-          } catch (e) {
-            console.error(`[Generate PDF] Image embed failed for page ${page.pageNumber}:`, e);
           }
-        } else {
-          const circleY = FOOTER_H + contentH / 2;
-          p.drawCircle({ x: imgX + imgW / 2, y: circleY, size: 60, color: rgb(tc.r, tc.g, tc.b), opacity: 0.15 });
-          const pn = String(page.pageNumber);
-          p.drawText(pn, { x: imgX + imgW / 2 - helveticaBold.widthOfTextAtSize(pn, 36) / 2, y: circleY - 18, size: 36, font: helveticaBold, color: rgb(tc.r, tc.g, tc.b) });
+
+          if (imgBytes) {
+            let img = null;
+            if (imgType === 'jpg') {
+              try { img = await pdfDoc.embedJpg(imgBytes); } catch { /* fall through */ }
+            }
+            if (!img) { try { img = await pdfDoc.embedPng(imgBytes); } catch { /* fall through */ } }
+            if (!img) { try { img = await pdfDoc.embedJpg(imgBytes); } catch { /* skip */ } }
+
+            if (img) {
+              const scale = Math.min(imgW / img.width, imgH / img.height);
+              const drawW = img.width * scale;
+              const drawH = img.height * scale;
+              const drawX = imgX + (imgW - drawW) / 2;
+              const drawY = FOOTER_H + margin + (imgH - drawH) / 2;
+              p.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
+            }
+          }
+        } catch (e) {
+          console.error(`[Generate PDF] Image embed failed for page ${page.pageNumber}:`, e);
         }
       }
 
