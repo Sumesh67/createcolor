@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { pdf } from "@react-pdf/renderer";
 import { WorksheetPDF } from "@/lib/pdf/WorksheetPDF";
+import { generateQRDataUrl } from "@/lib/pdf/qrCodeHelper";
 import { cn } from "@/lib/utils";
 
 type WorksheetType = "trace" | "connect-dots" | "math" | "reading";
@@ -101,12 +102,14 @@ export default function TeacherPage() {
     if (!generatedImageUrl) return;
     setIsDownloading(true);
     try {
+      const qrCodeDataUrl = await generateQRDataUrl('worksheet');
       const doc = (
         <WorksheetPDF
           imageUrl={generatedImageUrl}
           teacherName={teacherName}
           topic={topic}
           gradeLevel={gradeLevel}
+          qrCodeDataUrl={qrCodeDataUrl}
         />
       );
       const blob = await pdf(doc).toBlob();

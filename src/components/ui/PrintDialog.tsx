@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { Printer, Download, QrCode, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { PrintLayout } from "@/types";
 import { cn } from "@/lib/utils";
 import * as Dialog from "@radix-ui/react-dialog";
+import { generateQRDataUrl } from "@/lib/pdf/qrCodeHelper";
 
 interface PrintDialogProps {
   isOpen: boolean;
@@ -36,12 +37,18 @@ export function PrintDialog({
   const [layout, setLayout] = useState<PrintLayout>("single");
   const [paperSize, setPaperSize] = useState<"a4" | "letter">("letter");
   const [activeTab, setActiveTab] = useState<"print" | "qr">("print");
+  const [localQrDataUrl, setLocalQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    generateQRDataUrl('coloring').then(setLocalQrDataUrl).catch(() => {});
+  }, []);
 
   const handlePrint = async () => {
     await onPrint(layout, paperSize);
   };
 
   const handleDirectPrint = () => {
+    const qrSrc = qrCodeUrl || localQrDataUrl || '';
     const printWindow = window.open("", "_blank");
     if (printWindow) {
       printWindow.document.write(`
@@ -49,53 +56,80 @@ export function PrintDialog({
           <head>
             <title>Print Coloring Page</title>
             <style>
-              @page {
-                size: auto;
-                margin: 10mm;
-              }
-              * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-              }
-              html, body {
-                width: 100%;
-                height: 100%;
-                margin: 0;
-                padding: 0;
-              }
+              @page { size: auto; margin: 8mm; }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              html, body { width: 100%; height: 100%; }
               body {
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                padding-bottom: 0;
+              }
+              .image-wrap {
+                flex: 1;
                 display: flex;
                 justify-content: center;
                 align-items: center;
               }
               img {
                 max-width: 100%;
-                max-height: 100vh;
+                max-height: calc(100vh - 56px);
                 width: auto;
                 height: auto;
                 object-fit: contain;
                 page-break-inside: avoid;
               }
+              .footer {
+                height: 52px;
+                border-top: 1px solid #e5e7eb;
+                background: #f9fafb;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 20px;
+                font-family: Helvetica, Arial, sans-serif;
+              }
+              .footer-primary {
+                font-size: 10pt;
+                font-weight: bold;
+                color: #4b5563;
+              }
+              .footer-secondary {
+                font-size: 8pt;
+                color: #9ca3af;
+                margin-top: 2px;
+              }
+              .footer-scan {
+                font-size: 8pt;
+                color: #f97316;
+                text-align: right;
+                margin-right: 8px;
+              }
+              .footer-qr {
+                width: 48px;
+                height: 48px;
+                flex-shrink: 0;
+              }
               @media print {
-                html, body {
-                  width: 100%;
-                  height: 100%;
-                }
-                img {
-                  max-width: 100%;
-                  max-height: 100%;
-                  width: auto;
-                  height: auto;
-                  page-break-inside: avoid;
-                  page-break-after: avoid;
-                  page-break-before: avoid;
-                }
+                img { max-height: calc(100vh - 56px); page-break-inside: avoid; }
+                .footer { position: fixed; bottom: 0; left: 0; right: 0; }
               }
             </style>
           </head>
           <body>
-            <img src="${imageUrl}" alt="Coloring Page" onload="setTimeout(() => { window.print(); window.close(); }, 100);" />
+            <div class="image-wrap">
+              <img src="${imageUrl}" alt="Coloring Page" onload="setTimeout(() => { window.print(); window.close(); }, 100);" />
+            </div>
+            <div class="footer">
+              <div>
+                <div class="footer-primary">Created with Magic at CreateAndColor.com</div>
+                <div class="footer-secondary">Turn imagination into coloring pages!</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:0">
+                <div class="footer-scan">Scan to make<br/>your own!</div>
+                ${qrSrc ? `<img src="${qrSrc}" class="footer-qr" alt="QR Code" />` : ''}
+              </div>
+            </div>
           </body>
         </html>
       `);
@@ -224,7 +258,7 @@ export function PrintDialog({
                   onClick={handleDirectPrint}
                 >
                   <Printer className="w-4 h-4 mr-2" />
-                  Quick Print
+                  Print Now
                 </Button>
                 <Button
                   variant="primary"
@@ -233,7 +267,7 @@ export function PrintDialog({
                   isLoading={isLoading}
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Download PDF
+                  Save as PDF
                 </Button>
               </div>
             </div>

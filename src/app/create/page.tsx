@@ -33,6 +33,9 @@ export default function CreatePage() {
   const [error, setError] = useState<string | null>(null);
   const [isFallback, setIsFallback] = useState(false);
   const [printCount, setPrintCount] = useState(0);
+  const [printPdfUrl, setPrintPdfUrl] = useState<string | null>(null);
+  const [printQrCodeUrl, setPrintQrCodeUrl] = useState<string | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const handleGenerateRequest = useCallback(async (body: object) => {
     setIsGenerating(true);
@@ -386,8 +389,11 @@ export default function CreatePage() {
           isOpen={showPrintDialog}
           onClose={() => setShowPrintDialog(false)}
           imageUrl={imageUrl}
+          pdfUrl={printPdfUrl ?? undefined}
+          qrCodeUrl={printQrCodeUrl ?? undefined}
+          isLoading={isPrinting}
           onPrint={async () => {
-            // Call print API to generate PDF and track print count
+            setIsPrinting(true);
             try {
               const response = await fetch("/api/print", {
                 method: "POST",
@@ -395,14 +401,21 @@ export default function CreatePage() {
                 body: JSON.stringify({ imageUrl }),
               });
               const data = await response.json();
-              if (data.printCount) {
-                setPrintCount(data.printCount);
+              if (data.printCount) setPrintCount(data.printCount);
+              if (data.qrCodeUrl) setPrintQrCodeUrl(data.qrCodeUrl);
+              if (data.pdfUrl) {
+                setPrintPdfUrl(data.pdfUrl);
+                const a = document.createElement("a");
+                a.href = data.pdfUrl;
+                a.download = `coloring-page-${Date.now()}.pdf`;
+                a.click();
               }
             } catch (err) {
-              console.error("Print tracking error:", err);
+              console.error("Print error:", err);
+            } finally {
+              setIsPrinting(false);
+              setShowPrintDialog(false);
             }
-            setShowPrintDialog(false);
-            handlePrint();
           }}
         />
       )}

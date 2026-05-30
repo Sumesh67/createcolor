@@ -7,7 +7,13 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: ({ token, req }) => {
+        // Allow static image/asset files without auth
+        if (/\.(png|jpe?g|gif|svg|ico|webp|avif)$/i.test(req.nextUrl.pathname)) {
+          return true;
+        }
+        return !!token;
+      },
     },
     pages: {
       signIn: '/login',

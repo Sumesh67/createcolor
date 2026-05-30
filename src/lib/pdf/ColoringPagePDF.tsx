@@ -7,10 +7,14 @@ import {
   Text,
   StyleSheet,
 } from "@react-pdf/renderer";
+import { ViralFooter } from "./ViralFooter";
+
+const FOOTER_H = 68;
 
 const styles = StyleSheet.create({
   page: {
     padding: 30,
+    paddingBottom: FOOTER_H + 8,
     backgroundColor: "white",
   },
   coverPage: {
@@ -76,16 +80,6 @@ const styles = StyleSheet.create({
     objectFit: "contain",
     marginBottom: 5,
   },
-  footer: {
-    position: "absolute",
-    bottom: 15,
-    left: 30,
-    right: 30,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    fontSize: 8,
-    color: "#999",
-  },
 });
 
 interface ColoringPagePDFProps {
@@ -93,6 +87,7 @@ interface ColoringPagePDFProps {
   layout: "single" | "double" | "quad" | "mini";
   childName?: string;
   includeСover?: boolean;
+  qrCodeDataUrl?: string;
 }
 
 export function ColoringPagePDF({
@@ -100,6 +95,7 @@ export function ColoringPagePDF({
   layout,
   childName,
   includeСover = true,
+  qrCodeDataUrl,
 }: ColoringPagePDFProps) {
   const imagesPerPage = {
     single: 1,
@@ -176,12 +172,17 @@ export function ColoringPagePDF({
       {pages.map((pageImages, pageIndex) => (
         <Page key={pageIndex} size="A4" style={styles.page}>
           {renderImages(pageImages, layout)}
-          <View style={styles.footer}>
-            <Text>Made with Create and Color</Text>
-            <Text>
-              Page {pageIndex + 1} of {pages.length}
-            </Text>
-          </View>
+          {qrCodeDataUrl ? (
+            <ViralFooter
+              qrCodeDataUrl={qrCodeDataUrl}
+              pageLabel={`Page ${pageIndex + 1} of ${pages.length}`}
+            />
+          ) : (
+            <View style={{ position: "absolute", bottom: 15, left: 30, right: 30, flexDirection: "row", justifyContent: "space-between", fontSize: 8, color: "#999" }}>
+              <Text>Made with Create and Color</Text>
+              <Text>Page {pageIndex + 1} of {pages.length}</Text>
+            </View>
+          )}
         </Page>
       ))}
     </Document>

@@ -1,5 +1,6 @@
 import React from "react";
 import { Document, Page, Image, View, Text, StyleSheet } from "@react-pdf/renderer";
+import { ViralFooter } from "./ViralFooter";
 
 const styles = StyleSheet.create({
   page: {
@@ -41,25 +42,48 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    height: 68,
     backgroundColor: "#1a1a2e",
-    paddingVertical: 12,
-    paddingHorizontal: 30,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    flexDirection: "row",
     alignItems: "center",
+  },
+  footerLeft: {
+    flex: 1,
+    flexDirection: "column",
     justifyContent: "center",
   },
   footerText: {
-    fontSize: 13,
+    fontSize: 10,
     fontFamily: "Helvetica-Bold",
     color: "#ffffff",
-    textAlign: "center",
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   footerUrl: {
-    fontSize: 11,
+    fontSize: 8,
     fontFamily: "Helvetica",
     color: "#a0aec0",
-    textAlign: "center",
-    marginTop: 2,
+    marginTop: 4,
+  },
+  footerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  scanCaption: {
+    fontSize: 8,
+    fontFamily: "Helvetica",
+    color: "#F97316",
+    textAlign: "right",
+    marginRight: 8,
+  },
+  qrWrapper: {
+    backgroundColor: "#ffffff",
+    padding: 2,
+  },
+  qrImage: {
+    width: 46,
+    height: 46,
   },
 });
 
@@ -68,6 +92,7 @@ interface WorksheetPDFProps {
   teacherName: string;
   topic: string;
   gradeLevel: string;
+  qrCodeDataUrl?: string;
 }
 
 function getLastName(fullName: string): string {
@@ -75,7 +100,7 @@ function getLastName(fullName: string): string {
   return parts[parts.length - 1] || fullName;
 }
 
-export function WorksheetPDF({ imageUrl, teacherName, topic, gradeLevel }: WorksheetPDFProps) {
+export function WorksheetPDF({ imageUrl, teacherName, topic, gradeLevel, qrCodeDataUrl }: WorksheetPDFProps) {
   const lastName = getLastName(teacherName);
 
   return (
@@ -98,12 +123,32 @@ export function WorksheetPDF({ imageUrl, teacherName, topic, gradeLevel }: Works
         <Image src={imageUrl} style={styles.worksheetImage} />
 
         {/* Viral footer — printed on every physical worksheet */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            {`✨ Magic Coloring Worksheet generated specifically for ${lastName}'s class by CreateColor.com`}
-          </Text>
-          <Text style={styles.footerUrl}>Free worksheets for teachers at CreateColor.com</Text>
-        </View>
+        {qrCodeDataUrl ? (
+          <View style={styles.footer}>
+            <View style={styles.footerLeft}>
+              <Text style={styles.footerText}>
+                {`Magic Worksheet for ${lastName}'s class · CreateColor.com`}
+              </Text>
+              <Text style={styles.footerUrl}>Turn imagination into coloring pages for free!</Text>
+            </View>
+            <View style={styles.footerRight}>
+              <Text style={styles.scanCaption}>{'Scan to\nmake your own!'}</Text>
+              <View style={styles.qrWrapper}>
+                {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                <Image src={qrCodeDataUrl} style={styles.qrImage} />
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.footer}>
+            <View style={styles.footerLeft}>
+              <Text style={styles.footerText}>
+                {`Magic Coloring Worksheet for ${lastName}'s class · CreateColor.com`}
+              </Text>
+              <Text style={styles.footerUrl}>Free worksheets for teachers at CreateColor.com</Text>
+            </View>
+          </View>
+        )}
       </Page>
     </Document>
   );

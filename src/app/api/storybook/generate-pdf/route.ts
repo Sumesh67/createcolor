@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, PDFPage, PDFFont, PDFImage, rgb, StandardFonts } from 'pdf-lib';
 import { uploadPDF, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
+import { generateQRPngBytes } from '@/lib/pdf/qrCodeHelper';
 
 export const maxDuration = 60;
 
@@ -43,6 +44,53 @@ function wrapText(text: string, font: Awaited<ReturnType<PDFDocument['embedFont'
   return lines;
 }
 
+const FOOTER_H = 56;
+const QR_SIZE = 42;
+const FOOTER_PADDING = 20;
+
+function drawStorybookFooter(
+  page: PDFPage,
+  font: PDFFont,
+  boldFont: PDFFont,
+  qrImage: PDFImage,
+  pageWidth: number
+): void {
+  page.drawRectangle({
+    x: 0, y: 0,
+    width: pageWidth, height: FOOTER_H,
+    color: rgb(0.976, 0.980, 0.984),
+    borderColor: rgb(0.898, 0.906, 0.918),
+    borderWidth: 0.5,
+  });
+  page.drawText('Created with Magic at CreateAndColor.com', {
+    x: FOOTER_PADDING,
+    y: FOOTER_H - 20,
+    size: 10,
+    font: boldFont,
+    color: rgb(0.294, 0.333, 0.388),
+  });
+  page.drawText('Turn imagination into coloring pages!', {
+    x: FOOTER_PADDING,
+    y: FOOTER_H - 35,
+    size: 8,
+    font,
+    color: rgb(0.612, 0.639, 0.686),
+  });
+  const captionText = 'Scan to make your own!';
+  const captionW = font.widthOfTextAtSize(captionText, 8);
+  page.drawText(captionText, {
+    x: pageWidth - FOOTER_PADDING - QR_SIZE - captionW - 8,
+    y: FOOTER_H / 2 - 4,
+    size: 8,
+    font,
+    color: rgb(0.976, 0.451, 0.086),
+  });
+  const qrX = pageWidth - FOOTER_PADDING - QR_SIZE;
+  const qrY = (FOOTER_H - QR_SIZE) / 2;
+  page.drawRectangle({ x: qrX - 2, y: qrY - 2, width: QR_SIZE + 4, height: QR_SIZE + 4, color: rgb(1, 1, 1) });
+  page.drawImage(qrImage, { x: qrX, y: qrY, width: QR_SIZE, height: QR_SIZE });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -63,6 +111,10 @@ export async function POST(request: NextRequest) {
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
+    const qrBytes = await generateQRPngBytes('storybook');
+    // Embed QR image once; reuse across all pages
+    const qrImage = await pdfDoc.embedPng(qrBytes);
+
     // Landscape: 11 × 8.5 inches (792 × 612 points)
     const W = 792;
     const H = 612;
@@ -77,7 +129,6 @@ export async function POST(request: NextRequest) {
       forest:    { r: 0.2, g: 0.7, b: 0.5 },
     };
     const tc = themeColors[theme] || themeColors.space;
-    const watermark = 'Created with CreateAndColor.app';
 
     // ── Cover Page (landscape, full width) ──────────────────────────────────
     const cover = pdfDoc.addPage([W, H]);
@@ -103,31 +154,28 @@ export async function POST(request: NextRequest) {
     const themeLabel = theme.charAt(0).toUpperCase() + theme.slice(1) + ' Adventure';
     cover.drawText(themeLabel, { x: W - margin - helveticaBold.widthOfTextAtSize(themeLabel, 14), y: H - 220, size: 14, font: helveticaBold, color: rgb(tc.r, tc.g, tc.b) });
 
-    // Fold guide hint
-    cover.drawLine({ start: { x: half, y: 30 }, end: { x: half, y: H - 170 }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8), dashArray: [4, 4] });
-    const foldText = '< fold here >';
-    const foldW = helvetica.widthOfTextAtSize(foldText, 8);
-    cover.drawText(foldText, { x: half - foldW / 2, y: 18, size: 8, font: helvetica, color: rgb(0.7, 0.7, 0.7) });
+    // Fold guide hint (raised above footer)
+    cover.drawLine({ start: { x: half, y: FOOTER_H + 10 }, end: { x: half, y: H - 170 }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8), dashArray: [4, 4] });
 
-    // Watermark
-    const wmW = helvetica.widthOfTextAtSize(watermark, 10);
-    cover.drawText(watermark, { x: (W - wmW) / 2, y: margin, size: 10, font: helvetica, color: rgb(0.6, 0.6, 0.6) });
+    // Viral footer
+    drawStorybookFooter(cover, helvetica, helveticaBold, qrImage, W);
 
     // ── Story Pages (landscape, left = text, right = illustration) ──────────
     for (const page of pages) {
       const p = pdfDoc.addPage([W, H]);
 
-      // Vertical fold divider
-      p.drawLine({ start: { x: half, y: 20 }, end: { x: half, y: H - 20 }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+      // Vertical fold divider (stop above footer)
+      p.drawLine({ start: { x: half, y: FOOTER_H + 8 }, end: { x: half, y: H - 20 }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
 
       // ── LEFT HALF: story text ──
+      const contentH = H - FOOTER_H;
       const textAreaW = half - 2 * margin;
       const fontSize = 18;
       const lineHeight = 28;
 
       const lines = wrapText(page.storyText, helvetica, fontSize, textAreaW);
       const blockHeight = lines.length * lineHeight;
-      const textStartY = Math.floor((H + blockHeight) / 2) - lineHeight; // vertically centred
+      const textStartY = FOOTER_H + Math.floor((contentH + blockHeight) / 2) - lineHeight;
 
       lines.forEach((line, i) => {
         p.drawText(line, {
@@ -139,10 +187,10 @@ export async function POST(request: NextRequest) {
         });
       });
 
-      // Page number (bottom-left)
+      // Page number (above footer)
       p.drawText(`${page.pageNumber}`, {
         x: margin,
-        y: margin,
+        y: FOOTER_H + 8,
         size: 11,
         font: helveticaBold,
         color: rgb(tc.r, tc.g, tc.b),
@@ -151,7 +199,7 @@ export async function POST(request: NextRequest) {
       // ── RIGHT HALF: illustration ──
       const imgX = half + margin / 2;
       const imgW = half - margin;
-      const imgH = H - 2 * margin;
+      const imgH = contentH - 2 * margin;
 
       if (page.imageUrl) {
         const src = page.imageUrl.startsWith('data:image') ? page.imageUrl : null;
@@ -164,12 +212,11 @@ export async function POST(request: NextRequest) {
               if (!img) { try { img = await pdfDoc.embedPng(imgData.data); } catch { /* skip */ } }
 
               if (img) {
-                // Fit image maintaining aspect ratio
                 const scale = Math.min(imgW / img.width, imgH / img.height);
                 const drawW = img.width * scale;
                 const drawH = img.height * scale;
                 const drawX = imgX + (imgW - drawW) / 2;
-                const drawY = margin + (imgH - drawH) / 2;
+                const drawY = FOOTER_H + margin + (imgH - drawH) / 2;
                 p.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
               }
             }
@@ -177,12 +224,15 @@ export async function POST(request: NextRequest) {
             console.error(`[Generate PDF] Image embed failed for page ${page.pageNumber}:`, e);
           }
         } else {
-          // S3 URL — draw placeholder circle with page number
-          p.drawCircle({ x: imgX + imgW / 2, y: H / 2, size: 60, color: rgb(tc.r, tc.g, tc.b), opacity: 0.15 });
+          const circleY = FOOTER_H + contentH / 2;
+          p.drawCircle({ x: imgX + imgW / 2, y: circleY, size: 60, color: rgb(tc.r, tc.g, tc.b), opacity: 0.15 });
           const pn = String(page.pageNumber);
-          p.drawText(pn, { x: imgX + imgW / 2 - helveticaBold.widthOfTextAtSize(pn, 36) / 2, y: H / 2 - 18, size: 36, font: helveticaBold, color: rgb(tc.r, tc.g, tc.b) });
+          p.drawText(pn, { x: imgX + imgW / 2 - helveticaBold.widthOfTextAtSize(pn, 36) / 2, y: circleY - 18, size: 36, font: helveticaBold, color: rgb(tc.r, tc.g, tc.b) });
         }
       }
+
+      // Viral footer
+      drawStorybookFooter(p, helvetica, helveticaBold, qrImage, W);
     }
 
     // ── Back Cover ──────────────────────────────────────────────────────────
@@ -198,18 +248,12 @@ export async function POST(request: NextRequest) {
       color: rgb(tc.r, tc.g, tc.b),
     });
 
-    // Three decorative dots
+    // Three decorative dots (raised above footer)
     [-50, 0, 50].forEach((offset, i) => {
-      back.drawCircle({ x: W / 2 + offset, y: H / 2 - 40, size: i === 1 ? 14 : 10, color: rgb(tc.r, tc.g, tc.b), opacity: i === 1 ? 1 : 0.5 });
+      back.drawCircle({ x: W / 2 + offset, y: H / 2 - 20, size: i === 1 ? 14 : 10, color: rgb(tc.r, tc.g, tc.b), opacity: i === 1 ? 1 : 0.5 });
     });
 
-    back.drawText('Made with love at CreateAndColor.app', {
-      x: (W - helvetica.widthOfTextAtSize('Made with love at CreateAndColor.app', 13)) / 2,
-      y: margin,
-      size: 13,
-      font: helvetica,
-      color: rgb(0.5, 0.5, 0.5),
-    });
+    drawStorybookFooter(back, helvetica, helveticaBold, qrImage, W);
 
     // Save
     const pdfBytes = await pdfDoc.save();

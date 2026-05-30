@@ -7,23 +7,83 @@ import PrintJob from '@/lib/db/models/PrintJob';
 import mongoose from 'mongoose';
 import { PrintLayout } from '@/types';
 import QRCode from 'qrcode';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, PDFPage, PDFFont, rgb, StandardFonts } from 'pdf-lib';
+import { getScanUrl, generateQRPngBytes } from '@/lib/pdf/qrCodeHelper';
 
 export const maxDuration = 30;
+
+const FOOTER_H = 60;
+const QR_SIZE = 44;
+const FOOTER_PADDING = 20;
 
 interface SessionUser {
   id?: string;
 }
 
+async function drawViralFooter(
+  page: PDFPage,
+  pdfDoc: PDFDocument,
+  font: PDFFont,
+  boldFont: PDFFont,
+  qrBytes: Buffer,
+  pageWidth: number,
+  context: 'coloring' | 'worksheet' | 'party' | 'storybook'
+): Promise<void> {
+  // Footer background
+  page.drawRectangle({
+    x: 0, y: 0,
+    width: pageWidth, height: FOOTER_H,
+    color: rgb(0.976, 0.980, 0.984),
+    borderColor: rgb(0.898, 0.906, 0.918),
+    borderWidth: 0.5,
+  });
+
+  // Primary text
+  const primaryText = 'Created with Magic at CreateAndColor.com';
+  page.drawText(primaryText, {
+    x: FOOTER_PADDING,
+    y: FOOTER_H - 22,
+    size: 10,
+    font: boldFont,
+    color: rgb(0.294, 0.333, 0.388),
+  });
+
+  // Sub text
+  page.drawText('Turn imagination into coloring pages!', {
+    x: FOOTER_PADDING,
+    y: FOOTER_H - 38,
+    size: 8,
+    font,
+    color: rgb(0.612, 0.639, 0.686),
+  });
+
+  // Scan caption
+  const captionText = 'Scan to make your own!';
+  const captionW = font.widthOfTextAtSize(captionText, 8);
+  page.drawText(captionText, {
+    x: pageWidth - FOOTER_PADDING - QR_SIZE - captionW - 8,
+    y: FOOTER_H / 2 - 4,
+    size: 8,
+    font,
+    color: rgb(0.976, 0.451, 0.086),
+  });
+
+  // QR code image (white bg for clean scanning)
+  const qrImage = await pdfDoc.embedPng(qrBytes);
+  const qrX = pageWidth - FOOTER_PADDING - QR_SIZE;
+  const qrY = (FOOTER_H - QR_SIZE) / 2;
+  page.drawRectangle({ x: qrX - 2, y: qrY - 2, width: QR_SIZE + 4, height: QR_SIZE + 4, color: rgb(1, 1, 1) });
+  page.drawImage(qrImage, { x: qrX, y: qrY, width: QR_SIZE, height: QR_SIZE });
+
+  void context;
+}
+
 async function generatePdfWithWatermark(imageUrl: string): Promise<string> {
-  // Fetch the image
   const imageResponse = await fetch(imageUrl);
   const imageBytes = await imageResponse.arrayBuffer();
 
-  // Create PDF document
   const pdfDoc = await PDFDocument.create();
 
-  // Embed the image (try PNG first, then JPG)
   let image;
   try {
     image = await pdfDoc.embedPng(imageBytes);
@@ -31,43 +91,30 @@ async function generatePdfWithWatermark(imageUrl: string): Promise<string> {
     image = await pdfDoc.embedJpg(imageBytes);
   }
 
-  // Create page with image dimensions (letter size max)
   const { width, height } = image.scale(1);
-  const maxWidth = 612; // 8.5 inches
-  const maxHeight = 792; // 11 inches
+  const maxWidth = 612;
+  const maxHeight = 792;
+  const availH = maxHeight - FOOTER_H;
 
-  const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+  const scale = Math.min(maxWidth / width, availH / height, 1);
   const scaledWidth = width * scale;
   const scaledHeight = height * scale;
 
   const page = pdfDoc.addPage([maxWidth, maxHeight]);
 
-  // Center the image
+  // Center image in the area above the footer
   const x = (maxWidth - scaledWidth) / 2;
-  const y = (maxHeight - scaledHeight) / 2 + 20; // Offset for watermark
+  const y = FOOTER_H + (availH - scaledHeight) / 2;
+  page.drawImage(image, { x, y, width: scaledWidth, height: scaledHeight });
 
-  page.drawImage(image, {
-    x,
-    y,
-    width: scaledWidth,
-    height: scaledHeight,
-  });
-
-  // Add watermark
+  // Viral footer with QR code
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const watermarkText = 'Created for free at CreateColor.app';
-  const fontSize = 10;
-  const textWidth = font.widthOfTextAtSize(watermarkText, fontSize);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const qrBytes = await generateQRPngBytes('coloring');
+  console.log('[Print] QR bytes length:', qrBytes.length);
+  await drawViralFooter(page, pdfDoc, font, boldFont, qrBytes, maxWidth, 'coloring');
+  console.log('[Print] Footer drawn');
 
-  page.drawText(watermarkText, {
-    x: (maxWidth - textWidth) / 2,
-    y: 15,
-    size: fontSize,
-    font,
-    color: rgb(0.6, 0.6, 0.6),
-  });
-
-  // Save and return as base64 data URL
   const pdfBytes = await pdfDoc.save();
   const base64 = Buffer.from(pdfBytes).toString('base64');
   return `data:application/pdf;base64,${base64}`;
@@ -86,20 +133,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'imageUrl required' }, { status: 400 });
     }
 
-    // Generate PDF with watermark
     const pdfUrl = await generatePdfWithWatermark(imageUrl);
+    const scanUrl = getScanUrl('coloring');
 
-    // Generate QR code for the app
-    const qrCodeDataUrl = await QRCode.toDataURL('https://createcolor.vercel.app', {
-      width: 200,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#ffffff',
-      },
-    });
-
-    // Save PrintJob and get print count if user is authenticated
     const session = await getServerSession(authOptions);
     const userId = (session?.user as SessionUser)?.id;
     let printCount = 0;
@@ -108,7 +144,6 @@ export async function POST(request: NextRequest) {
       await connectDB();
 
       if (pageId && !pageId.startsWith('temp_')) {
-        // Verify page exists and belongs to user
         const page = await ColoringPage.findOne({
           _id: new mongoose.Types.ObjectId(pageId),
           userId: new mongoose.Types.ObjectId(userId),
@@ -119,14 +154,13 @@ export async function POST(request: NextRequest) {
             userId: new mongoose.Types.ObjectId(userId),
             pageId: new mongoose.Types.ObjectId(pageId),
             layout,
-            pdfUrl: imageUrl, // Store original image URL
-            qrCode: qrCodeDataUrl,
+            pdfUrl: imageUrl,
+            qrCode: scanUrl,
             status: 'complete',
           });
         }
       }
 
-      // Get total print count for this user
       printCount = await PrintJob.countDocuments({
         userId: new mongoose.Types.ObjectId(userId),
       });
@@ -134,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       pdfUrl,
-      qrCodeUrl: qrCodeDataUrl,
+      qrCodeUrl: scanUrl,
       layout,
       printCount,
     });

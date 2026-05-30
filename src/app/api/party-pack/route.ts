@@ -4,7 +4,8 @@ import { processImageForColoring, fetchImage } from "@/lib/image/processImage";
 import { uploadImage, isS3Configured, bufferToDataUrl } from "@/lib/storage/uploadImage";
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rateLimit";
 import { PrintLayout } from "@/types";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, PDFPage, PDFFont, PDFImage, rgb, StandardFonts } from "pdf-lib";
+import { generateQRPngBytes } from "@/lib/pdf/qrCodeHelper";
 import { getServerSession } from "next-auth";
 import { authOptions, extractTokenFromRequest, verifyJWT, getRequestUserRole } from "@/lib/auth";
 
@@ -22,8 +23,53 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-const PAGE_W = 612; // 8.5 in
-const PAGE_H = 792; // 11 in
+const PAGE_W = 612;
+const PAGE_H = 792;
+const FOOTER_H = 60;
+const QR_SIZE = 44;
+const FOOTER_PADDING = 20;
+
+function drawPartyFooter(
+  page: PDFPage,
+  font: PDFFont,
+  boldFont: PDFFont,
+  qrImage: PDFImage
+): void {
+  page.drawRectangle({
+    x: 0, y: 0,
+    width: PAGE_W, height: FOOTER_H,
+    color: rgb(0.976, 0.980, 0.984),
+    borderColor: rgb(0.898, 0.906, 0.918),
+    borderWidth: 0.5,
+  });
+  page.drawText('Created with Magic at CreateAndColor.com', {
+    x: FOOTER_PADDING,
+    y: FOOTER_H - 22,
+    size: 10,
+    font: boldFont,
+    color: rgb(0.294, 0.333, 0.388),
+  });
+  page.drawText('Turn imagination into coloring pages!', {
+    x: FOOTER_PADDING,
+    y: FOOTER_H - 38,
+    size: 8,
+    font,
+    color: rgb(0.612, 0.639, 0.686),
+  });
+  const captionText = 'Scan to make your own!';
+  const captionW = font.widthOfTextAtSize(captionText, 8);
+  page.drawText(captionText, {
+    x: PAGE_W - FOOTER_PADDING - QR_SIZE - captionW - 8,
+    y: FOOTER_H / 2 - 4,
+    size: 8,
+    font,
+    color: rgb(0.976, 0.451, 0.086),
+  });
+  const qrX = PAGE_W - FOOTER_PADDING - QR_SIZE;
+  const qrY = (FOOTER_H - QR_SIZE) / 2;
+  page.drawRectangle({ x: qrX - 2, y: qrY - 2, width: QR_SIZE + 4, height: QR_SIZE + 4, color: rgb(1, 1, 1) });
+  page.drawImage(qrImage, { x: qrX, y: qrY, width: QR_SIZE, height: QR_SIZE });
+}
 
 async function imageUrlToBytes(url: string): Promise<Uint8Array> {
   if (url.startsWith("data:")) {
@@ -41,22 +87,25 @@ async function buildPartyPackPdf(
 ): Promise<string> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const qrBytes = await generateQRPngBytes('party');
+  // Embed QR image once; reuse across all pages
+  const qrImage = await pdfDoc.embedPng(qrBytes);
 
   // Cover page
   const cover = pdfDoc.addPage([PAGE_W, PAGE_H]);
   const title = childName ? `${childName}'s Party Pack` : "Party Pack";
-  const subtitle = theme;
-  const watermark = "Created free at CreateAndColor.app";
 
   cover.drawText(title, {
-    x: PAGE_W / 2 - font.widthOfTextAtSize(title, 28) / 2,
+    x: PAGE_W / 2 - boldFont.widthOfTextAtSize(title, 28) / 2,
     y: PAGE_H / 2 + 20,
     size: 28,
-    font,
+    font: boldFont,
     color: rgb(0.2, 0.2, 0.2),
   });
-  cover.drawText(subtitle, {
-    x: PAGE_W / 2 - font.widthOfTextAtSize(subtitle, 16) / 2,
+  cover.drawText(theme, {
+    x: PAGE_W / 2 - font.widthOfTextAtSize(theme, 16) / 2,
     y: PAGE_H / 2 - 20,
     size: 16,
     font,
@@ -69,13 +118,7 @@ async function buildPartyPackPdf(
     font,
     color: rgb(0.6, 0.6, 0.6),
   });
-  cover.drawText(watermark, {
-    x: PAGE_W / 2 - font.widthOfTextAtSize(watermark, 9) / 2,
-    y: 15,
-    size: 9,
-    font,
-    color: rgb(0.7, 0.7, 0.7),
-  });
+  drawPartyFooter(cover, font, boldFont, qrImage);
 
   // One image per page
   for (const url of pageUrls) {
@@ -91,23 +134,17 @@ async function buildPartyPackPdf(
       const { width, height } = image.scale(1);
       const margin = 36;
       const availW = PAGE_W - margin * 2;
-      const availH = PAGE_H - margin * 2 - 20; // 20px for watermark
+      const availH = PAGE_H - margin * 2 - FOOTER_H;
       const scale = Math.min(availW / width, availH / height, 1);
 
       const scaledW = width * scale;
       const scaledH = height * scale;
       const x = (PAGE_W - scaledW) / 2;
-      const y = (PAGE_H - scaledH) / 2 + 10;
+      const y = FOOTER_H + (availH - scaledH) / 2 + margin;
 
       const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
       page.drawImage(image, { x, y, width: scaledW, height: scaledH });
-      page.drawText(watermark, {
-        x: PAGE_W / 2 - font.widthOfTextAtSize(watermark, 8) / 2,
-        y: 12,
-        size: 8,
-        font,
-        color: rgb(0.75, 0.75, 0.75),
-      });
+      drawPartyFooter(page, font, boldFont, qrImage);
     } catch {
       // Skip pages that fail to embed
     }
