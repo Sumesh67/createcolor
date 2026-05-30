@@ -1,6 +1,5 @@
 import React from "react";
 import { Document, Page, Image, View, Text, StyleSheet } from "@react-pdf/renderer";
-import { ViralFooter } from "./ViralFooter";
 
 const styles = StyleSheet.create({
   page: {
@@ -33,8 +32,14 @@ const styles = StyleSheet.create({
     minWidth: 180,
     paddingBottom: 2,
   },
-  worksheetImage: {
+  worksheetImageWrapper: {
     flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  worksheetImage: {
+    width: "100%",
+    height: "100%",
     objectFit: "contain",
   },
   footer: {
@@ -119,8 +124,10 @@ export function WorksheetPDF({ imageUrl, teacherName, topic, gradeLevel, qrCodeD
         </View>
 
         {/* Worksheet image */}
-        {/* eslint-disable-next-line jsx-a11y/alt-text */}
-        <Image src={imageUrl} style={styles.worksheetImage} />
+        <View style={styles.worksheetImageWrapper}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <Image src={imageUrl} style={styles.worksheetImage} />
+        </View>
 
         {/* Viral footer — printed on every physical worksheet */}
         {qrCodeDataUrl ? (
