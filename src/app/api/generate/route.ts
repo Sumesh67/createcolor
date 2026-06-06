@@ -167,9 +167,16 @@ export async function POST(request: NextRequest) {
       const isDataUrl = generatedImageUrl.startsWith('data:');
 
       if (isDataUrl) {
-        // Data URLs can be used directly
-        imageUrl = generatedImageUrl;
-        const thumbnailUrl = generatedImageUrl;
+        // For PNG data URLs, composite the QR code before returning
+        const isPngDataUrl = generatedImageUrl.startsWith('data:image/png;base64,');
+        if (isPngDataUrl) {
+          const base64 = generatedImageUrl.split(',')[1];
+          const pngBuffer = await compositeQRCode(Buffer.from(base64, 'base64'), await generateQRPngBytes('coloring'));
+          imageUrl = `data:image/png;base64,${pngBuffer.toString('base64')}`;
+        } else {
+          imageUrl = generatedImageUrl;
+        }
+        const thumbnailUrl = imageUrl;
 
         // Only save to database if user is authenticated
         let pageId: string | undefined;
