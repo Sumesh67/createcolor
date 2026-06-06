@@ -10,11 +10,12 @@ const PRINT_WIDTH = 1275; // 8.5 inches * 150 DPI
 const PRINT_HEIGHT = 1650; // 11 inches * 150 DPI
 
 // Threshold for black/white conversion (0-255)
-// Lower = more black, Higher = more white
-const BW_THRESHOLD = 180;
+// Lower = more black (preserves thin lines like necks/joints), Higher = more white
+const BW_THRESHOLD = 160;
 
 // Contrast adjustment (1.0 = no change, >1 = more contrast)
-const CONTRAST_MULTIPLIER = 1.2;
+// Kept gentle so thin connecting lines between body parts aren't wiped out
+const CONTRAST_MULTIPLIER = 1.1;
 
 export interface ProcessedImage {
   buffer: Buffer;

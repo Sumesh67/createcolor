@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
 import { getRequestUserRole } from '@/lib/auth';
+import { compositeQRCode } from '@/lib/image/processImage';
+import { generateQRPngBytes } from '@/lib/pdf/qrCodeHelper';
 import sharp from 'sharp';
 
 export const maxDuration = 120;
@@ -115,12 +117,14 @@ async function generateImage(prompt: string, isOutline: boolean): Promise<string
     const imageData = data.data?.[0];
 
     if (imageData?.b64_json) {
-      // Apply post-processing for outline style
+      const qrBytes = await generateQRPngBytes('storybook');
       if (isOutline) {
         const processedBase64 = await postProcessForColoring(imageData.b64_json);
-        return `data:image/png;base64,${processedBase64}`;
+        const withQR = await compositeQRCode(Buffer.from(processedBase64, 'base64'), qrBytes);
+        return `data:image/png;base64,${withQR.toString('base64')}`;
       }
-      return `data:image/png;base64,${imageData.b64_json}`;
+      const withQR = await compositeQRCode(Buffer.from(imageData.b64_json, 'base64'), qrBytes);
+      return `data:image/png;base64,${withQR.toString('base64')}`;
     }
 
     return imageData?.url || null;

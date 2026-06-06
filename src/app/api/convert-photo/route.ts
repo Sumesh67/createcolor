@@ -3,7 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions, verifyJWT, extractTokenFromRequest, getRequestUserRole } from '@/lib/auth';
 import { analyzePhoto } from '@/lib/ai/gemini-client';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
-import { createThumbnail } from '@/lib/image/processImage';
+import { createThumbnail, compositeQRCode } from '@/lib/image/processImage';
+import { generateQRPngBytes } from '@/lib/pdf/qrCodeHelper';
 import { checkDailyLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
 import connectDB from '@/lib/db/connect';
 import ColoringPage from '@/lib/db/models/ColoringPage';
@@ -455,6 +456,9 @@ export async function POST(request: NextRequest) {
         style as 'simple' | 'medium' | 'detailed'
       );
     }
+
+    // Embed QR code
+    processedBuffer = await compositeQRCode(processedBuffer, await generateQRPngBytes('coloring'));
 
     // Upload or encode
     const imageUrl = isS3Configured()

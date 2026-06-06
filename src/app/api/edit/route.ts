@@ -4,7 +4,8 @@ import { authOptions, getRequestUserRole } from '@/lib/auth';
 import { generateColoringPage } from '@/lib/ai/generateColoringPage';
 import { buildEditPrompt } from '@/lib/ai/promptBuilder';
 import { checkPromptSafety } from '@/lib/ai/safetyFilter';
-import { processImageForColoring, fetchImage } from '@/lib/image/processImage';
+import { processImageForColoring, fetchImage, compositeQRCode } from '@/lib/image/processImage';
+import { generateQRPngBytes } from '@/lib/pdf/qrCodeHelper';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
 import connectDB from '@/lib/db/connect';
@@ -73,7 +74,8 @@ export async function POST(request: NextRequest) {
 
     // Process the image
     const generatedBuffer = await fetchImage(result.imageUrl);
-    const processedBuffer = await processImageForColoring(generatedBuffer);
+    let processedBuffer = await processImageForColoring(generatedBuffer);
+    processedBuffer = await compositeQRCode(processedBuffer, await generateQRPngBytes('coloring'));
 
     // Upload
     const imageUrl = isS3Configured()

@@ -21,7 +21,7 @@ const IMAGE_CONFIG = {
   model: 'black-forest-labs/FLUX.1-schnell',
   width: 1024,
   height: 1024,
-  steps: 8,
+  steps: 12,
 };
 
 /**

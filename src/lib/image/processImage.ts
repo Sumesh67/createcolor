@@ -7,9 +7,9 @@ interface ProcessOptions {
 }
 
 const DEFAULT_OPTIONS: ProcessOptions = {
-  threshold: 128,
+  threshold: 160,
   lineThickness: 2,
-  contrast: 1.5,
+  contrast: 1.1,
 };
 
 export async function processImageForColoring(
@@ -111,6 +111,34 @@ async function fetchImage(url: string): Promise<Buffer> {
   }
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
+}
+
+export async function compositeQRCode(
+  buffer: Buffer,
+  qrBuffer: Buffer,
+  qrSize: number = 150
+): Promise<Buffer> {
+  const metadata = await sharp(buffer).metadata();
+  const imgWidth = metadata.width ?? 1024;
+  const imgHeight = metadata.height ?? 1024;
+
+  const padding = 16;
+  const bgPad = 4;
+  const bgSize = qrSize + bgPad * 2;
+
+  const whiteBg = await sharp({
+    create: { width: bgSize, height: bgSize, channels: 3, background: { r: 255, g: 255, b: 255 } },
+  }).png().toBuffer();
+
+  const qrResized = await sharp(qrBuffer).resize(qrSize, qrSize).png().toBuffer();
+
+  return sharp(buffer)
+    .composite([
+      { input: whiteBg, left: imgWidth - padding - bgSize, top: imgHeight - padding - bgSize },
+      { input: qrResized, left: imgWidth - padding - bgSize + bgPad, top: imgHeight - padding - bgSize + bgPad },
+    ])
+    .png()
+    .toBuffer();
 }
 
 export { fetchImage };

@@ -4,6 +4,8 @@ import { authOptions, extractTokenFromRequest, verifyJWT } from '@/lib/auth';
 import { analyzePhoto } from '@/lib/ai/gemini-client';
 import { checkAndConsumeSpark, getSparkStatus, EnergyError } from '@/lib/auth/check-energy';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
+import { compositeQRCode } from '@/lib/image/processImage';
+import { generateQRPngBytes } from '@/lib/pdf/qrCodeHelper';
 import sharp from 'sharp';
 
 export const maxDuration = 120;
@@ -259,6 +261,7 @@ export async function POST(request: NextRequest) {
 
       // Step 3: Post-process
       processedImage = await postProcessImage(rawImage);
+      processedImage = await compositeQRCode(processedImage, await generateQRPngBytes('coloring'));
     } catch (aiError) {
       console.error('[MagicLens] AI pipeline failed:', aiError);
       throw aiError; // Surface the real error instead of silently producing a bad result

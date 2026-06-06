@@ -190,65 +190,92 @@ export async function generateMultipleColoringPages(
   return results;
 }
 
+// Theme → specific individual characters to draw one per page
+const THEME_CHARACTERS: Record<string, string[]> = {
+  'jungle animals':    ['lion', 'elephant', 'monkey', 'giraffe', 'zebra', 'parrot', 'hippo', 'tiger', 'lemur', 'toucan', 'crocodile', 'gorilla'],
+  'dinosaurs':         ['T-Rex dinosaur', 'Triceratops', 'Brachiosaurus', 'Stegosaurus', 'Pterodactyl', 'Ankylosaurus', 'baby Raptor', 'Diplodocus', 'Spinosaurus', 'Parasaurolophus'],
+  'unicorns':          ['pink unicorn', 'rainbow unicorn', 'baby unicorn', 'golden unicorn', 'sparkly unicorn', 'winged unicorn', 'unicorn with flowers', 'unicorn on a cloud'],
+  'under the sea':     ['friendly shark', 'clownfish', 'sea turtle', 'octopus', 'dolphin', 'starfish', 'crab', 'seahorse', 'jellyfish', 'blue whale', 'mermaid'],
+  'farm animals':      ['pig', 'cow', 'horse', 'sheep', 'chicken', 'duck', 'donkey', 'goat', 'rabbit', 'rooster', 'puppy', 'kitten'],
+  'outer space':       ['cute astronaut', 'friendly alien', 'rocket ship', 'space robot', 'moon rover', 'baby alien', 'comet', 'space puppy in a helmet'],
+  'princess':          ['princess', 'fairy godmother', 'friendly dragon', 'unicorn', 'castle knight', 'fairy', 'mermaid princess', 'elf princess'],
+  'superheroes':       ['superhero flying', 'hero with cape', 'girl superhero', 'robot hero', 'animal superhero'],
+  'dragons':           ['baby dragon', 'friendly dragon', 'dragon with wings', 'dragon breathing bubbles', 'sleeping dragon', 'dragon family'],
+  'mermaids':          ['mermaid', 'mermaid with fish', 'mermaid on a rock', 'baby mermaid', 'mermaid and turtle', 'mermaid with seashells'],
+  'robots':            ['friendly robot', 'dancing robot', 'tiny robot', 'robot puppy', 'robot with balloons', 'flying robot'],
+  'cats':              ['kitten', 'fluffy cat', 'cat with bow', 'sleeping cat', 'cat playing', 'mama cat and kittens'],
+  'dogs':              ['puppy', 'fluffy dog', 'dog with bone', 'dog chasing ball', 'dog in a hat', 'dog family'],
+};
+
+// Safe actions — NO text-triggering phrases, NO "making friends" (causes two animals to merge)
+const SAFE_ACTIONS = [
+  'playing happily',
+  'having an adventure',
+  'exploring',
+  'dancing joyfully',
+  'flying through the sky',
+  'swimming',
+  'running through a meadow',
+  'sitting on a rainbow',
+  'having a picnic',
+  'discovering treasure',
+  'riding a bicycle',
+  'playing music',
+  'stargazing',
+  'jumping on clouds',
+  'wearing a party hat',
+  'playing with balloons',
+  'blowing bubbles',
+  'eating cake',
+  'bouncing happily',
+  'smiling and waving',
+];
+
+const PARTY_SETTINGS = [
+  'in a colorful garden',
+  'at a magical castle',
+  'on a sunny beach',
+  'in a cozy treehouse',
+  'on a rainbow',
+  'in a candy land',
+  'in a fairy village',
+  'at a carnival',
+  'in a snow wonderland',
+  'at a playground',
+  'in a jungle',
+  'on the moon',
+  'in an enchanted forest',
+  'by a waterfall',
+  'in a flower field',
+];
+
+function getCharactersForTheme(theme: string): string[] {
+  const key = theme.toLowerCase().trim();
+  // Exact match
+  if (THEME_CHARACTERS[key]) return THEME_CHARACTERS[key];
+  // Partial match
+  for (const [k, v] of Object.entries(THEME_CHARACTERS)) {
+    if (key.includes(k) || k.includes(key)) return v;
+  }
+  // Fallback: use theme name as the character
+  return Array(12).fill(null).map(() => theme);
+}
+
 /**
- * Generate variation prompts for party packs
+ * Generate variation prompts for party packs — one specific character per page
  */
 export async function generateVariationPrompts(
   theme: string,
   count: number
 ): Promise<string[]> {
-  const actions = [
-    'playing happily',
-    'having an adventure',
-    'exploring',
-    'dancing',
-    'celebrating',
-    'flying through the sky',
-    'swimming',
-    'running through a meadow',
-    'sitting on a rainbow',
-    'making friends',
-    'having a picnic',
-    'building something fun',
-    'discovering treasure',
-    'reading a magical book',
-    'riding a bicycle',
-    'playing music',
-    'painting a picture',
-    'cooking delicious food',
-    'stargazing at night',
-    'jumping on clouds',
-  ];
-
-  const settings = [
-    'in an enchanted forest',
-    'at a magical castle',
-    'on a sunny beach',
-    'in outer space',
-    'underwater',
-    'in a colorful garden',
-    'on top of a mountain',
-    'in a cozy treehouse',
-    'at a birthday party',
-    'in a candy land',
-    'on a pirate ship',
-    'in a fairy village',
-    'at a carnival',
-    'in a snow wonderland',
-    'on a farm',
-    'in a jungle',
-    'at a playground',
-    'in a bakery',
-    'on the moon',
-    'in a library',
-  ];
+  const characters = getCharactersForTheme(theme);
 
   const prompts: string[] = [];
-
   for (let i = 0; i < count; i++) {
-    const action = actions[i % actions.length];
-    const setting = settings[i % settings.length];
-    prompts.push(`${theme} ${action} ${setting}`);
+    const character = characters[i % characters.length];
+    const action = SAFE_ACTIONS[i % SAFE_ACTIONS.length];
+    const setting = PARTY_SETTINGS[i % PARTY_SETTINGS.length];
+    prompts.push(`cute ${character} ${action} ${setting}`);
   }
 
   // Shuffle for variety

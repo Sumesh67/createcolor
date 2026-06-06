@@ -6,7 +6,6 @@ import { Pencil, Printer, Download, Share2, ZoomIn, ZoomOut, RotateCcw } from "l
 import { Button } from "@/components/ui/Button";
 import { SkeletonLoader } from "@/components/ui/LoadingSpinner";
 import * as Slider from "@radix-ui/react-slider";
-import QRCode from "qrcode";
 
 interface ColoringCanvasProps {
   imageUrl: string | null;
@@ -30,16 +29,7 @@ export function ColoringCanvas({
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://createandcolor.aivantageworks.com";
-    const scanUrl = `${appUrl}/scan?utm_source=print&utm_medium=create_page&from=coloring&utm_campaign=coloring_qr`;
-    QRCode.toDataURL(scanUrl, { width: 80, margin: 1, color: { dark: "#000000", light: "#ffffff" } })
-      .then(setQrDataUrl)
-      .catch(() => setQrDataUrl(null));
-  }, []);
 
   // Reset loading state when imageUrl changes
   useEffect(() => {
@@ -179,17 +169,6 @@ export function ColoringCanvas({
             />
           </motion.div>
         </div>
-
-        {/* QR Code Badge */}
-        {imageUrl && !imageLoading && !imageError && qrDataUrl && (
-          <div className="absolute bottom-3 right-3 flex flex-col items-center gap-1 bg-white/95 rounded-xl p-2 shadow-md border border-gray-100">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrDataUrl} alt="QR code" width={52} height={52} className="rounded" />
-            <p className="font-body text-[9px] text-gray-500 text-center leading-tight">
-              Scan to make<br />your own!
-            </p>
-          </div>
-        )}
 
         {/* Zoom Controls */}
         <div className="absolute top-3 right-3 flex gap-2">

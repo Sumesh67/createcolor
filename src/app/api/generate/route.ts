@@ -5,7 +5,8 @@ import { generateColoringPage } from '@/lib/ai/generateColoringPage';
 import { buildPromptFromSlots, buildCustomPrompt, getDisplayPrompt } from '@/lib/ai/promptBuilder';
 import { checkPromptSafety } from '@/lib/ai/safetyFilter';
 import { filterPrompt } from '@/lib/safety/input-filter';
-import { processImageForColoring, createThumbnail, fetchImage } from '@/lib/image/processImage';
+import { processImageForColoring, createThumbnail, fetchImage, compositeQRCode } from '@/lib/image/processImage';
+import { generateQRPngBytes } from '@/lib/pdf/qrCodeHelper';
 import { convertPhotoToColoringPage } from '@/lib/image/imageToOutline';
 import { uploadImage, bufferToDataUrl, isS3Configured } from '@/lib/storage/uploadImage';
 import { checkDailyLimit, getRateLimitIdentifier } from '@/lib/rateLimit';
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
 
       const buffer = Buffer.from(await file.arrayBuffer());
       processedBuffer = await convertPhotoToColoringPage(buffer);
+      processedBuffer = await compositeQRCode(processedBuffer, await generateQRPngBytes('coloring'));
       prompt = 'Uploaded photo converted to coloring page';
       imageUrl = isS3Configured()
         ? await uploadImage(processedBuffer)
@@ -195,6 +197,7 @@ export async function POST(request: NextRequest) {
       // For other image APIs (like DALL-E), fetch and process
       const generatedBuffer = await fetchImage(generatedImageUrl);
       processedBuffer = await processImageForColoring(generatedBuffer);
+      processedBuffer = await compositeQRCode(processedBuffer, await generateQRPngBytes('coloring'));
 
       // Upload processed image
       imageUrl = isS3Configured()
