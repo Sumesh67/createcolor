@@ -116,26 +116,33 @@ async function fetchImage(url: string): Promise<Buffer> {
 export async function compositeQRCode(
   buffer: Buffer,
   qrBuffer: Buffer,
-  qrSize: number = 150
+  qrSize: number = 120
 ): Promise<Buffer> {
   const metadata = await sharp(buffer).metadata();
   const imgWidth = metadata.width ?? 1024;
   const imgHeight = metadata.height ?? 1024;
 
-  const padding = 16;
-  const bgPad = 4;
-  const bgSize = qrSize + bgPad * 2;
+  const padding = 12;
+  const stripHeight = qrSize + padding * 2;
+  const totalHeight = imgHeight + stripHeight;
 
-  const whiteBg = await sharp({
-    create: { width: bgSize, height: bgSize, channels: 3, background: { r: 255, g: 255, b: 255 } },
+  // White footer strip placed below the image
+  const footerStrip = await sharp({
+    create: { width: imgWidth, height: stripHeight, channels: 3, background: { r: 255, g: 255, b: 255 } },
   }).png().toBuffer();
 
   const qrResized = await sharp(qrBuffer).resize(qrSize, qrSize).png().toBuffer();
 
-  return sharp(buffer)
+  // Expand canvas and place QR in the bottom-right of the footer strip
+  const canvas = await sharp({
+    create: { width: imgWidth, height: totalHeight, channels: 3, background: { r: 255, g: 255, b: 255 } },
+  }).png().toBuffer();
+
+  return sharp(canvas)
     .composite([
-      { input: whiteBg, left: imgWidth - padding - bgSize, top: imgHeight - padding - bgSize },
-      { input: qrResized, left: imgWidth - padding - bgSize + bgPad, top: imgHeight - padding - bgSize + bgPad },
+      { input: buffer, left: 0, top: 0 },
+      { input: footerStrip, left: 0, top: imgHeight },
+      { input: qrResized, left: imgWidth - padding - qrSize, top: imgHeight + padding },
     ])
     .png()
     .toBuffer();
