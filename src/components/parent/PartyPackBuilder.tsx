@@ -49,7 +49,7 @@ export function PartyPackBuilder({
   error = null,
 }: PartyPackBuilderProps) {
   const [theme, setTheme] = useState("");
-  const [count, setCount] = useState(10);
+  const [count, setCount] = useState(2);
   const [layout, setLayout] = useState<PrintLayout>("single");
   const [childName, setChildName] = useState("");
 
@@ -121,7 +121,7 @@ export function PartyPackBuilder({
             value={[count]}
             onValueChange={([value]) => setCount(value)}
             min={1}
-            max={20}
+            max={2}
             step={1}
           >
             <Slider.Track className="bg-gray-200 relative grow rounded-full h-2">
@@ -131,7 +131,7 @@ export function PartyPackBuilder({
           </Slider.Root>
           <div className="flex justify-between text-xs text-gray-500 mt-1">
             <span>1</span>
-            <span>20</span>
+            <span>2</span>
           </div>
         </div>
 

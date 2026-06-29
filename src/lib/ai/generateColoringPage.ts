@@ -34,7 +34,7 @@ export async function generateColoringPage(prompt: string): Promise<GenerationRe
   const aiResult = await generateWithDreamShaper(prompt);
 
   if (aiResult.success && aiResult.base64) {
-    console.log('[generateColoringPage] Generated with FLUX.1-schnell');
+    console.log('[generateColoringPage] Generated with FLUX.1-dev');
 
     try {
       // Apply Sharp post-processing for perfect black/white

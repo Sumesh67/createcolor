@@ -3,40 +3,36 @@
  * Transforms simple user ideas into professional AI prompts for line art
  */
 
-// Prefix for professional coloring book style
+// Keep the prompt TIGHT. FLUX has strong prompt adherence, so a short, concrete
+// prompt with the subject up front beats a long wall of constraints (which
+// dilutes attention and causes off-subject "unexpected" images). The most
+// important single-subject + anatomy guidance is stated once, positively.
 const COLORING_BOOK_PREFIX =
-  'Professional children coloring book page, simple clean line art,';
+  'Black and white coloring book line art of';
 
-// Suffix to enforce black and white outline style with full composition and intact creature anatomy
 const COLORING_BOOK_SUFFIX =
-  'thick bold black outlines, pure white background, no coloring, no shading, no gray, high contrast, vector style, G-rated, safe for kids, no text, no words, ' +
-  'only one single animal, one character only, no other animals or characters in the scene, ' +
-  'single complete creature with all body parts fully connected, head attached to neck and body, all limbs joined to torso, no floating or detached body parts, ' +
-  'correct anatomy, one head per character, full body visible from head to toe, complete figure, ' +
-  'centered composition, entire subject fits within frame, wide shot, zoomed out enough to show whole body, ample white space around subject';
+  'one single subject, full body, simple cute cartoon, bold clean black outlines, ' +
+  'no shading, no color, no gray, plain white background, centered, lots of open space to color';
 
-// Strict negative prompt to force black and white outlines, prevent cropping, and prevent broken/merged anatomy
+// Focused negative prompt. FLUX.1-schnell ignores negatives entirely, but
+// FLUX.1-dev (with guidance) respects them — so we keep the highest-value
+// terms only. Short and targeted works better than an exhaustive list.
 export const DREAMSHAPER_NEGATIVE_PROMPT =
-  'color, shading, gradients, shadows, 3d, photorealistic, gray, blurry, messy lines, text, words, letters, writing, watermark, nudity, violence, scary, dark, complex backgrounds, realistic, photograph, painting, colored, fills, halftone, ' +
-  'two animals, multiple animals, second animal, another animal, pair of animals, group of animals, merged animals, fused animals, overlapping animals, animals touching, ' +
-  'extra heads, duplicate heads, two heads, multiple heads, extra limbs, extra arms, extra legs, deformed, malformed, disfigured, bad anatomy, fused bodies, merged characters, conjoined, ' +
-  'floating head, detached head, severed head, disconnected body parts, floating limbs, isolated body parts, broken anatomy, split body, ' +
-  'cropped, cut off, partial figure, incomplete figure, out of frame, clipped, body parts missing, figure extends beyond border, close-up, extreme close-up, portrait crop, zoomed in too much';
+  'color, shading, gradient, gray, photo, realistic, 3d, text, watermark, ' +
+  'two animals, multiple characters, extra limbs, extra heads, extra legs, extra arms, ' +
+  'deformed, bad anatomy, fused bodies, merged, cropped, cut off, close-up';
 
 /**
- * Wraps user input into a professional DreamShaper prompt for coloring pages
- * @param userInput - The simple idea from the user (e.g., "a unicorn playing soccer")
- * @returns Formatted prompt optimized for DreamShaper line art generation
+ * Wraps a (preferably already-refined) subject into a tight FLUX line-art prompt.
+ * @param userInput - The clean subject from the user / LLM refinement
  */
 export function prepareDreamShaperPrompt(userInput: string): string {
-  // Clean and normalize the input
   const cleanedInput = userInput
     .trim()
     .toLowerCase()
     .replace(/[^\w\s,'-]/g, '') // Remove special characters except common ones
     .replace(/\s+/g, ' '); // Normalize whitespace
 
-  // Build the full prompt
   return `${COLORING_BOOK_PREFIX} ${cleanedInput}, ${COLORING_BOOK_SUFFIX}`;
 }
 

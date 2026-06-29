@@ -8,6 +8,7 @@ import {
   extractCoreSubject,
   DREAMSHAPER_NEGATIVE_PROMPT,
 } from '@/lib/ai/prompt-utils';
+import { refineColoringSubject } from '@/lib/ai/refinePrompt';
 
 export interface ImageGenerationResponse {
   success: boolean;
@@ -16,12 +17,16 @@ export interface ImageGenerationResponse {
   error?: string;
 }
 
-// FLUX.1-schnell configuration for optimal coloring pages
+// FLUX.1.1-pro: serverless, far better anatomy & prompt adherence than schnell
+// (the source of the extra-limbs / colored-eyes / off-subject problems). FLUX.1-dev
+// would require a paid dedicated endpoint on Together; pro is pay-per-image and
+// works serverlessly. Pro manages its own sampling internally, so `steps` is
+// effectively a no-op but is accepted by the API.
 const IMAGE_CONFIG = {
-  model: 'black-forest-labs/FLUX.1-schnell',
+  model: 'black-forest-labs/FLUX.1.1-pro',
   width: 1024,
   height: 1024,
-  steps: 12,
+  steps: 28,
 };
 
 /**
@@ -46,11 +51,15 @@ export async function generateColoringPage(
     // Extract core subject if prompt is already wrapped
     const coreSubject = extractCoreSubject(userPrompt);
 
-    // Prepare the optimized prompt for DreamShaper
-    const optimizedPrompt = prepareDreamShaperPrompt(coreSubject);
+    // Stage 1a: LLM refines messy/ambiguous input into one clean single-subject
+    // description. Falls back to the raw subject on any failure.
+    const refinedSubject = await refineColoringSubject(coreSubject);
 
-    console.log(`[ImageService] Generating with FLUX.1-schnell`);
-    console.log(`[ImageService] Core subject: ${coreSubject.substring(0, 50)}...`);
+    // Stage 1b: wrap the clean subject in a tight FLUX line-art prompt.
+    const optimizedPrompt = prepareDreamShaperPrompt(refinedSubject);
+
+    console.log(`[ImageService] Generating with ${IMAGE_CONFIG.model}`);
+    console.log(`[ImageService] Subject: ${refinedSubject.substring(0, 60)}...`);
 
     // Retry up to 3 times with exponential backoff on rate limit
     let response: Response | null = null;
@@ -175,6 +184,12 @@ export function isImageServiceAvailable(): boolean {
   return !!process.env.TOGETHER_API_KEY;
 }
 
+// Teacher worksheets stay on FLUX.1-schnell, NOT the pro model used by the main
+// coloring flow. Reasons: worksheets are simple repeated shapes (schnell quality
+// is plenty), schnell honours the per-grade `steps` tuning that pro ignores, and
+// it keeps worksheet cost ~13x lower than pro.
+const WORKSHEET_MODEL = 'black-forest-labs/FLUX.1-schnell';
+
 // Negative prompt tuned specifically for clean worksheet line art
 const WORKSHEET_NEGATIVE_PROMPT =
   'color, colored fills, shading, gradients, shadows, gray tones, 3d render, photorealistic, blurry, messy lines, sketchy, rough, watercolor, painting, photograph, realistic, halftone, cross-hatching, texture, background scenery, complex backgrounds, text embedded in scene, letters, numbers drawn into image, watermark, nudity, violence, extra limbs, bad anatomy, deformed, fused objects, clutter, crowded composition, multiple scenes, border decorations';
@@ -191,8 +206,10 @@ export async function generateWorksheetImage(fullPrompt: string, steps?: number)
     return { success: false, error: 'Image generation service not configured' };
   }
 
-  const resolvedSteps = steps ?? IMAGE_CONFIG.steps;
-  console.log(`[WorksheetImage] Sending prompt (${fullPrompt.length} chars) to FLUX at ${resolvedSteps} steps`);
+  // Default to a schnell-appropriate step count (the WORKSHEET_MODEL is schnell,
+  // not the pro model whose IMAGE_CONFIG.steps=28 would be wrong here).
+  const resolvedSteps = steps ?? 8;
+  console.log(`[WorksheetImage] Sending prompt (${fullPrompt.length} chars) to FLUX schnell at ${resolvedSteps} steps`);
 
   let response: Response | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -203,7 +220,7 @@ export async function generateWorksheetImage(fullPrompt: string, steps?: number)
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: IMAGE_CONFIG.model,
+        model: WORKSHEET_MODEL,
         prompt: fullPrompt,
         negative_prompt: WORKSHEET_NEGATIVE_PROMPT,
         width: IMAGE_CONFIG.width,

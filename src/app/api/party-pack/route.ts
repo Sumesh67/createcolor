@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { theme, count = 10, layout = "single", childName } = body as {
+    const { theme, count = 2, layout = "single", childName } = body as {
       theme: string;
       count?: number;
       layout?: PrintLayout;
@@ -202,15 +202,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Theme is required" }, { status: 400, headers: corsHeaders });
     }
 
-    if (count < 1 || count > 20) {
-      return NextResponse.json(
-        { error: "Count must be between 1 and 20" },
-        { status: 400, headers: corsHeaders }
-      );
-    }
+    // Cap at 2 pages for now (cost control on FLUX.1.1-pro). Clamp rather than
+    // reject so older clients sending a larger count still succeed.
+    const MAX_COUNT = 2;
+    const safeCount = Math.min(Math.max(Math.floor(count) || 1, 1), MAX_COUNT);
 
     // Generate variation prompts
-    const prompts = await generateVariationPrompts(theme, count);
+    const prompts = await generateVariationPrompts(theme, safeCount);
 
     // Generate coloring pages sequentially to avoid rate limiting
     const pageUrls: string[] = [];
