@@ -2,10 +2,17 @@ import OpenAI from "openai";
 import connectDB from "@/lib/db/connect";
 import mongoose from "mongoose";
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazily initialize the OpenAI client. Constructing it at module scope throws
+// "Missing credentials" during the Next build ("collect page data" evaluates
+// this module) whenever OPENAI_API_KEY isn't present in the build environment.
+// Building it on first use keeps the build safe and respects the runtime guard.
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openaiClient;
+}
 
 // ==========================================
 // LAYER 3: OUTPUT MODERATION (After Image Generated)
@@ -133,7 +140,7 @@ export async function moderateImage(
     console.log('[Safety] Moderating generated image...');
 
     // Use GPT-4 Vision to analyze the image
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o-mini", // Use mini for cost efficiency
       messages: [
         {

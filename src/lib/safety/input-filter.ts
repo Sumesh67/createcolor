@@ -1,10 +1,17 @@
 import { SafetyCheckResult } from "@/types";
 import OpenAI from "openai";
 
-// Initialize OpenAI client (for moderation API - FREE to use)
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazily initialize the OpenAI client. Constructing it at module scope throws
+// "Missing credentials" during the Next build ("collect page data" evaluates
+// this module) whenever OPENAI_API_KEY isn't present in the build environment.
+// Building it on first use keeps the build safe and respects the runtime guard.
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openaiClient;
+}
 
 // Comprehensive blocklist for children's platform
 const BLOCKLIST = {
@@ -112,7 +119,7 @@ async function checkOpenAIModeration(text: string): Promise<{ safe: boolean; cat
       return { safe: true };
     }
 
-    const response = await openai.moderations.create({
+    const response = await getOpenAI().moderations.create({
       input: text,
     });
 
