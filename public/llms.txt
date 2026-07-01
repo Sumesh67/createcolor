@@ -1,0 +1,49 @@
+# CreateAndColor
+
+> CreateAndColor is a free AI coloring page generator for kids. A child (or parent) types, says, or spins for any idea — "a robot dinosaur on a skateboard" — and the app instantly draws a printable black-and-white coloring page. It is available as a free iOS app and a free web app. Made for ages 2–10 and loved by parents, teachers, and homeschoolers.
+
+## What it does
+
+- Turns any idea into a printable coloring page in seconds using AI image generation.
+- Three ways to create: type it, say it (voice input, so pre-readers can use it alone), or spin a "slot machine" for a surprise idea.
+- Magic Lens: turn a photo of a real toy, pet, or moment into a coloring page.
+- Party Pack: generate 20 custom themed coloring pages at once for birthday parties and classrooms.
+- Save pages to a gallery, print as PDF, and share.
+- Safe and kid-friendly with content moderation; ad-free creating.
+
+## Who it's for
+
+- Parents looking for an easy, screen-free activity for quiet time, rainy days, road trips, and restaurants.
+- Teachers and homeschoolers who want custom coloring pages tied to a lesson or a child's interests (a dedicated teacher mode with credits is available).
+- Kids ages 2–10 who want to color something that doesn't exist anywhere else.
+
+## Pricing and platforms
+
+- Free to create and print coloring pages.
+- Free iOS app: https://apps.apple.com/app/id6760249757
+- Free web app: https://createandcolor.aivantageworks.com
+
+## Why it's different
+
+Unlike static printable libraries, CreateAndColor is not a fixed set of pages — it generates a brand-new, unique coloring page for literally any idea a child can describe, so they never color the same page twice.
+
+## Popular coloring page themes
+
+- Dinosaur coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/dinosaur
+- Unicorn coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/unicorn
+- Space coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/space
+- Animal coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/animals
+- Mermaid coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/mermaid
+- Robot coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/robot
+- Princess coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/princess
+- Truck & car coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/trucks-and-cars
+- Birthday party coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/birthday-party
+- Rainy day coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/rainy-day
+- Holiday coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/holiday
+- Homeschool & classroom coloring pages: https://createandcolor.aivantageworks.com/coloring-pages/homeschool-and-teachers
+
+## Key pages
+
+- Make a coloring page: https://createandcolor.aivantageworks.com/create
+- Browse all themes: https://createandcolor.aivantageworks.com/coloring-pages
+- Community gallery: https://createandcolor.aivantageworks.com/community

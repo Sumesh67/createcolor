@@ -64,6 +64,9 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  verification: {
+    google: "3trIam-AUiTD_dTLgRbKfdsqxfahSNEmNjvogj19QO4",
+  },
 };
 
 export default function RootLayout({
@@ -71,11 +74,65 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const siteUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    "https://createandcolor.aivantageworks.com";
+
+  // Structured data so search engines and LLMs (ChatGPT, Claude, Perplexity,
+  // Google AI Overviews) understand and can recommend the product.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${siteUrl}/#organization`,
+        name: "CreateAndColor",
+        url: siteUrl,
+        logo: `${siteUrl}/icon-512.png`,
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${siteUrl}/#website`,
+        url: siteUrl,
+        name: "CreateAndColor",
+        publisher: { "@id": `${siteUrl}/#organization` },
+      },
+      {
+        "@type": "SoftwareApplication",
+        name: "CreateAndColor",
+        operatingSystem: "iOS, Web",
+        applicationCategory: "EducationalApplication",
+        url: siteUrl,
+        installUrl: "https://apps.apple.com/app/id6760249757",
+        description:
+          "Free AI coloring page generator for kids. Type, say, or spin any idea and get a printable coloring page in seconds. Great for parents, teachers, and homeschoolers.",
+        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        featureList: [
+          "Turn any idea into a printable coloring page in seconds",
+          "Voice input so young kids can create on their own",
+          "Magic Lens: turn a photo into a coloring page",
+          "Party Pack: 20 custom coloring pages at once",
+          "Print as PDF and share",
+          "Safe, kid-friendly, ad-free",
+        ],
+        audience: {
+          "@type": "Audience",
+          audienceType:
+            "Parents, teachers, and homeschoolers of kids ages 2-10",
+        },
+      },
+    ],
+  };
+
   return (
     <html lang="en">
       <body
         className={`${fredoka.variable} ${nunito.variable} font-body antialiased bg-background text-foreground`}
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <Providers>
           <TopHeader />
           <main className="pt-14 pb-16 md:pb-0">
